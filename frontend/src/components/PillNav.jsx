@@ -17,11 +17,19 @@ function PillNav({
   brandAccent = '',
   mobileExtraContent,
 }) {
+  const fallbackLogo = '/assests/ciphera.jpeg';
   const trackRef = useRef(null);
   const itemRefs = useRef(new Map());
   const [hoveredHref, setHoveredHref] = useState('');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0, visible: false });
+  const [logoSource, setLogoSource] = useState(logo || fallbackLogo);
+  const [logoLoadError, setLogoLoadError] = useState(false);
+
+  useEffect(() => {
+    setLogoSource(logo || fallbackLogo);
+    setLogoLoadError(false);
+  }, [logo]);
 
   const resolvedItems = useMemo(
     () => items.filter((item) => item && item.href && item.label),
@@ -100,8 +108,19 @@ function PillNav({
     <div className={`pill-nav ${className}`.trim()} style={navStyle}>
       <Link to="/" className="pill-nav__brand" aria-label={brandName}>
         <div className="pill-nav__logo-shell">
-          {logo ? (
-            <img src={logo} alt={logoAlt} className="pill-nav__logo" />
+          {!logoLoadError ? (
+            <img
+              src={logoSource}
+              alt={logoAlt}
+              className="pill-nav__logo"
+              onError={() => {
+                if (logoSource !== fallbackLogo) {
+                  setLogoSource(fallbackLogo);
+                } else {
+                  setLogoLoadError(true);
+                }
+              }}
+            />
           ) : (
             <span className="pill-nav__logo-fallback">{brandName.charAt(0)}</span>
           )}
