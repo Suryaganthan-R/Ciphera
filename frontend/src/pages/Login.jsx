@@ -7,6 +7,7 @@ import { useSiteConfig } from '../context/SiteConfigContext';
 import { sanitizeInput, validateEmail } from '../utils/security';
 import Logger from '../utils/logger';
 import { Button, Input, Alert } from '../components/ui';
+import GoogleSignInButton from '../components/GoogleSignInButton';
 import './Auth.css';
 
 function Login() {
@@ -18,7 +19,7 @@ function Login() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
 
-  const { login, clearErrors } = useContext(AuthContext);
+  const { login, loginWithGoogle, clearErrors } = useContext(AuthContext);
   const { eventName } = useSiteConfig();
   const navigate = useNavigate();
 
@@ -74,6 +75,19 @@ function Login() {
       }
     } finally {
       // Always reset submitting state
+      setIsSubmitting(false);
+    }
+  };
+
+  const onGoogleCredential = async (credential) => {
+    setIsSubmitting(true);
+    setFormError('');
+    try {
+      await loginWithGoogle(credential);
+      navigate('/');
+    } catch (err) {
+      setFormError(err.message);
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -155,6 +169,8 @@ function Login() {
               {isSubmitting ? 'Signing In...' : 'Sign In'}
             </Button>
           </form>
+
+          <GoogleSignInButton onCredential={onGoogleCredential} onError={setFormError} />
 
           <div className="htb-auth-footer">
             <p className="htb-auth-footer-text">

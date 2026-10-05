@@ -341,6 +341,24 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const loginWithGoogle = async (credential) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const res = await axios.post('/api/auth/google', { credential });
+      setUser(res.data.user);
+      setIsAuthenticated(true);
+      return res.data;
+    } catch (err) {
+      const message = err.response?.data?.message || 'Google sign-in failed. Please try again.';
+      setError(message);
+      throw new Error(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Clear errors
   const clearErrors = useCallback(() => {
     setError(null);
@@ -356,6 +374,7 @@ export const AuthProvider = ({ children }) => {
         updateUserData,
         register,
         login,
+        loginWithGoogle,
         logout,
         clearErrors
       }}

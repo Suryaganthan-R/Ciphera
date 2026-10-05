@@ -17,6 +17,8 @@ const { sendOTPEmail } = require('../utils/email');
 const requestIp = require('request-ip');
 const UAParser = require('ua-parser-js');
 const moment = require('moment-timezone');
+const { OAuth2Client } = require('google-auth-library');
+const googleOAuthClient = new OAuth2Client();
 
 // Real-time logging function
 const logActivity = (action, details = {}) => {
@@ -175,6 +177,118 @@ router.post('/register', async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Failed to check registration visibility setting'
+    });
+  }
+});
+
+// @route   POST /api/auth/google
+// @desc    Verify Google identity and sign in or create an eligible account
+// @access  Public
+router.post('/google', async (req, res) => {
+  try {
+    const { credential } = req.body;
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+
+    if (!clientId) {
+      return res.status(503).json({ success: false, message: 'Google sign-in is not configured.' });
+    }
+    if (!credential || typeof credential !== 'string') {
+      return res.status(400).json({ success: false, message: 'A Google credential is required.' });
+    }
+
+    const ticket = await googleOAuthClient.verifyIdToken({ idToken: credential, audience: clientId });
+    const googleUser = ticket.getPayload();
+    if (!googleUser?.email || googleUser.email_verified !== true) {
+      return res.status(401).json({ success: false, message: 'Google did not provide a verified email address.' });
+    }
+
+    const email = googleUser.email.toLowerCase();
+    let user = await User.findOne({ email });
+    if (!user) {
+      const cfg = await Configuration.findOne({ key: 'global' }).select('visibility').lean();
+      if ((cfg?.visibility?.registration || 'private') !== 'public') {
+        return res.status(403).json({
+          success: false,
+          message: 'Public registration is currently disabled. Contact an administrator to create your account.'
+        });
+      }
+
+      const cleanedUsername = (googleUser.name || email.split('@')[0])
+        .normalize('NFKD')
+        .replace(/[^a-zA-Z0-9_-]/g, '')
+        .slice(0, 24);
+      const baseUsername = cleanedUsername.length >= 3 ? cleanedUsername : `user_${cleanedUsername || 'google'}`;
+      let username = baseUsername;
+      let suffix = 1;
+      while (await User.exists({ username })) {
+        const suffixText = `_${suffix++}`;
+        username = `${baseUsername.slice(0, 24 - suffixText.length)}${suffixText}`;
+      }
+
+      user = await User.create({
+        username,
+        email,
+        password: crypto.randomBytes(32).toString('hex'),
+        role: 'user',
+        verified: true,
+        isEmailVerified: true
+      });
+    }
+
+    if (user.isBlocked) {
+      await createLoginLog(user, req, 'failed', 'Account blocked by admin');
+      return res.status(403).json({
+        success: false,
+        message: 'You are blocked. Contact an administrator for further information.',
+        isBlocked: true,
+        blockedReason: user.blockedReason
+      });
+    }
+
+    user.lastLoginAt = new Date();
+    await user.save();
+    await user.resetLoginAttempts();
+    await createLoginLog(user, req, 'success');
+    await user.populate('team');
+
+    const refreshTokenUtils = require('../utils/refreshToken');
+    const clientIp = getRealIP(req);
+    const userAgentParsed = parseUserAgent(req.get('User-Agent'));
+    const tokens = await refreshTokenUtils.createTokenPair(user, clientIp, userAgentParsed);
+    const isProduction = process.env.NODE_ENV === 'production';
+    const durationInMs = (value, fallback) => {
+      const match = /^(\d+)([mhd])$/.exec(value || '');
+      if (!match) return fallback;
+      const multipliers = { m: 60000, h: 3600000, d: 86400000 };
+      return Number(match[1]) * multipliers[match[2]];
+    };
+    const accessMaxAge = durationInMs(config.jwt.accessTokenExpiresIn, 15 * 60 * 1000);
+    const refreshMaxAge = durationInMs(config.jwt.refreshTokenExpiresIn, 7 * 24 * 60 * 60 * 1000);
+    const cookieOptions = { httpOnly: true, secure: isProduction, sameSite: 'lax', path: '/' };
+
+    res.cookie('access_token', tokens.accessToken, { ...cookieOptions, maxAge: accessMaxAge });
+    res.cookie('refresh_token', tokens.refreshToken, { ...cookieOptions, maxAge: refreshMaxAge });
+    res.cookie('token', tokens.accessToken, { ...cookieOptions, maxAge: accessMaxAge });
+
+    res.json({
+      success: true,
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        points: user.points,
+        team: user.team ? {
+          _id: user.team._id ? user.team._id.toString() : user.team.toString(),
+          name: user.team.name || 'Team'
+        } : null
+      }
+    });
+  } catch (error) {
+    console.error('Google sign-in error:', error);
+    res.status(401).json({
+      success: false,
+      message: 'Google sign-in failed. Please verify your account and try again.'
     });
   }
 });

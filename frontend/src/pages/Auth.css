@@ -214,6 +214,33 @@
   gap: 24px;
 }
 
+.htb-google-signin {
+  margin-top: 24px;
+}
+
+.htb-google-signin-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.htb-google-signin-divider::before,
+.htb-google-signin-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-primary);
+}
+
+.htb-google-signin-button {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
 /* Footer */
 .htb-auth-footer {
   margin-top: 32px;

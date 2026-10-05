@@ -1,11 +1,27 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useContext, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Mail, User, Users, FileText, ArrowLeft, UserPlus, Shield } from 'lucide-react';
-import { Button } from '../components/ui';
+import AuthContext from '../context/AuthContext';
+import { Alert } from '../components/ui';
+import GoogleSignInButton from '../components/GoogleSignInButton';
 import './Auth.css';
 
 function Register() {
+  const { loginWithGoogle } = useContext(AuthContext);
+  const navigate = useNavigate();
+  const [formError, setFormError] = useState('');
+
+  const onGoogleCredential = async (credential) => {
+    setFormError('');
+    try {
+      await loginWithGoogle(credential);
+      navigate('/');
+    } catch (err) {
+      setFormError(err.message);
+    }
+  };
+
   return (
     <div className="htb-auth-container">
       {/* Animated Grid Background */}
@@ -43,6 +59,9 @@ function Register() {
             <h2>Request Access</h2>
             <p>Contact an administrator to create your account</p>
           </div>
+
+          {formError && <Alert type="warning">{formError}</Alert>}
+          <GoogleSignInButton onCredential={onGoogleCredential} onError={setFormError} />
 
           <div className="htb-register-info">
             <h3 className="htb-register-title">Required Information</h3>
