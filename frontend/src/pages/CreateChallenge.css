@@ -7,10 +7,10 @@
 }
 
 .create-challenge-card {
-  background-color: rgba(26, 46, 70, 0.5);
+  background-color: rgba(26,46,70, 0.5);
   border-radius: 8px;
-  border: 1px solid #2D1451;
-  box-shadow: 0 4px 20px rgba(168, 85, 247, 0.05);
+  border: 1px solid #1d3924;
+  box-shadow: 0 4px 20px rgba(79,155,80, 0.05);
   padding: 2rem;
   width: 100%;
   max-width: 800px;
@@ -28,8 +28,8 @@
 }
 
 .highlight {
-  color: #A855F7;
-  text-shadow: 0 0 10px rgba(168, 85, 247, 0.5);
+  color: #4f9b50;
+  text-shadow: 0 0 10px rgba(79,155,80, 0.5);
 }
 
 .create-challenge-header p {
@@ -64,8 +64,8 @@
 .form-group select {
   padding: 0.75rem 1rem;
   border-radius: 4px;
-  border: 1px solid #2D1451;
-  background-color: rgba(15, 25, 35, 0.8);
+  border: 1px solid #1d3924;
+  background-color: rgba(15,25,35, 0.8);
   color: #e0e0e0;
   font-size: 1rem;
   transition: border-color 0.3s ease, box-shadow 0.3s ease;
@@ -75,8 +75,8 @@
 .form-group textarea:focus,
 .form-group select:focus {
   outline: none;
-  border-color: #A855F7;
-  box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.2);
+  border-color: #4f9b50;
+  box-shadow: 0 0 0 2px rgba(79,155,80, 0.2);
 }
 
 .form-hint {
@@ -90,7 +90,7 @@
   padding: 0.75rem;
   border-radius: 4px;
   border: none;
-  background: linear-gradient(90deg, #D8B4FE, #A855F7);
+  background: linear-gradient(90deg, #c7d88f, #4f9b50);
   color: #0a0e17;
   font-weight: 600;
   font-size: 1rem;
@@ -100,7 +100,7 @@
 
 .submit-button:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(168, 85, 247, 0.3);
+  box-shadow: 0 4px 12px rgba(79,155,80, 0.3);
 }
 
 .submit-button:disabled {
@@ -111,8 +111,8 @@
 }
 
 .form-error {
-  background-color: rgba(255, 0, 0, 0.1);
-  border: 1px solid rgba(255, 0, 0, 0.3);
+  background-color: rgba(255,0,0, 0.1);
+  border: 1px solid rgba(255,0,0, 0.3);
   color: #ff6b6b;
   padding: 0.75rem 1rem;
   border-radius: 4px;
@@ -121,8 +121,8 @@
 }
 
 .form-success {
-  background-color: rgba(0, 255, 0, 0.1);
-  border: 1px solid rgba(0, 255, 0, 0.3);
+  background-color: rgba(0,255,0, 0.1);
+  border: 1px solid rgba(0,255,0, 0.3);
   color: #00ff00;
   padding: 0.75rem 1rem;
   border-radius: 4px;
@@ -157,10 +157,10 @@
   display: flex;
   align-items: flex-start;
   gap: 1rem;
-  background-color: rgba(0, 0, 0, 0.2);
+  background-color: rgba(0,0,0, 0.2);
   padding: 1rem;
   border-radius: 8px;
-  border: 1px solid rgba(168, 85, 247, 0.2);
+  border: 1px solid rgba(79,155,80, 0.2);
 }
 
 .hint-content {
@@ -169,8 +169,8 @@
 
 .hint-content textarea {
   width: 100%;
-  background-color: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(168, 85, 247, 0.3);
+  background-color: rgba(0,0,0, 0.3);
+  border: 1px solid rgba(79,155,80, 0.3);
   color: #fff;
   padding: 0.5rem;
   border-radius: 4px;
@@ -186,8 +186,8 @@
 
 .hint-cost input {
   width: 60px;
-  background-color: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(168, 85, 247, 0.3);
+  background-color: rgba(0,0,0, 0.3);
+  border: 1px solid rgba(79,155,80, 0.3);
   color: #fff;
   padding: 0.5rem;
   border-radius: 4px;
@@ -195,12 +195,12 @@
 }
 
 .hint-cost-label {
-  color: #A855F7;
+  color: #4f9b50;
   font-size: 0.9rem;
 }
 
 .remove-hint-btn {
-  background-color: rgba(255, 0, 0, 0.2);
+  background-color: rgba(255,0,0, 0.2);
   color: #ff5555;
   border: none;
   width: 30px;
@@ -215,7 +215,7 @@
 }
 
 .remove-hint-btn:hover {
-  background-color: rgba(255, 0, 0, 0.4);
+  background-color: rgba(255,0,0, 0.4);
 }
 
 .remove-hint-btn:disabled {
@@ -224,9 +224,9 @@
 }
 
 .add-hint-btn {
-  background-color: rgba(168, 85, 247, 0.1);
-  color: #A855F7;
-  border: 1px solid rgba(168, 85, 247, 0.3);
+  background-color: rgba(79,155,80, 0.1);
+  color: #4f9b50;
+  border: 1px solid rgba(79,155,80, 0.3);
   padding: 0.5rem 1rem;
   border-radius: 4px;
   cursor: pointer;
@@ -235,7 +235,7 @@
 }
 
 .add-hint-btn:hover {
-  background-color: rgba(168, 85, 247, 0.2);
+  background-color: rgba(79,155,80, 0.2);
 }
 
 .checkbox-label {
@@ -259,24 +259,24 @@
 
 /* CTFd Scoring Section */
 .scoring-section {
-  background-color: rgba(15, 25, 35, 0.5);
-  border: 1px solid rgba(168, 85, 247, 0.2);
+  background-color: rgba(15,25,35, 0.5);
+  border: 1px solid rgba(79,155,80, 0.2);
   border-radius: 8px;
   padding: 1.5rem;
   margin-top: 1rem;
 }
 
 .scoring-section h3 {
-  color: #A855F7;
+  color: #4f9b50;
   font-size: 1.2rem;
   margin-bottom: 1rem;
-  text-shadow: 0 0 10px rgba(168, 85, 247, 0.3);
+  text-shadow: 0 0 10px rgba(79,155,80, 0.3);
 }
 
 .dynamic-fields {
   margin-top: 1rem;
   padding-top: 1rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid rgba(255,255,255, 0.1);
   animation: slideDown 0.3s ease-in-out;
 }
 
@@ -292,15 +292,15 @@
 }
 
 .scoring-preview {
-  background-color: rgba(168, 85, 247, 0.05);
-  border: 1px solid rgba(168, 85, 247, 0.2);
+  background-color: rgba(79,155,80, 0.05);
+  border: 1px solid rgba(79,155,80, 0.2);
   border-radius: 6px;
   padding: 1rem;
   margin-top: 1rem;
 }
 
 .scoring-preview strong {
-  color: #A855F7;
+  color: #4f9b50;
   display: block;
   margin-bottom: 0.5rem;
 }
@@ -319,21 +319,21 @@
 
 .scoring-preview li::before {
   content: '→ ';
-  color: #A855F7;
+  color: #4f9b50;
   margin-right: 0.5rem;
 }
 
 /* File Upload Section */
 .file-upload-section {
-  border: 1px solid #2D1451;
+  border: 1px solid #1d3924;
   border-radius: 8px;
   padding: 1.5rem;
-  background: rgba(15, 25, 40, 0.5);
+  background: rgba(15,25,40, 0.5);
   margin-top: 1rem;
 }
 
 .file-upload-section h3 {
-  color: #A855F7;
+  color: #4f9b50;
   margin-bottom: 1rem;
   font-size: 1.2rem;
 }
@@ -353,16 +353,16 @@
   justify-content: space-between;
   align-items: center;
   padding: 0.75rem;
-  background: rgba(26, 46, 70, 0.3);
-  border: 1px solid #2D1451;
+  background: rgba(26,46,70, 0.3);
+  border: 1px solid #1d3924;
   border-radius: 6px;
   margin-bottom: 0.5rem;
   transition: all 0.3s ease;
 }
 
 .file-item:hover {
-  background: rgba(26, 46, 70, 0.5);
-  border-color: #A855F7;
+  background: rgba(26,46,70, 0.5);
+  border-color: #4f9b50;
 }
 
 .file-info {
@@ -422,15 +422,15 @@
   display: block;
   margin: 0.5rem 0;
   padding: 0.5rem;
-  background: rgba(26, 46, 70, 0.5);
-  border: 1px solid #2D1451;
+  background: rgba(26,46,70, 0.5);
+  border: 1px solid #1d3924;
   border-radius: 4px;
   color: #ffffff;
   cursor: pointer;
 }
 
 .upload-new-files input[type="file"]::file-selector-button {
-  background: #A855F7;
+  background: #4f9b50;
   color: #0a0a1e;
   border: none;
   padding: 0.5rem 1rem;
@@ -442,19 +442,19 @@
 }
 
 .upload-new-files input[type="file"]::file-selector-button:hover {
-  background: #7E22CE;
+  background: #528a43;
 }
 
 .selected-files {
   margin-top: 1rem;
   padding: 1rem;
-  background: rgba(168, 85, 247, 0.05);
-  border: 1px solid #A855F7;
+  background: rgba(79,155,80, 0.05);
+  border: 1px solid #4f9b50;
   border-radius: 6px;
 }
 
 .selected-files strong {
-  color: #A855F7;
+  color: #4f9b50;
   display: block;
   margin-bottom: 0.5rem;
 }
@@ -477,7 +477,7 @@
 }
 
 .upload-files-btn {
-  background: #A855F7;
+  background: #4f9b50;
   color: #0a0a1e;
   border: none;
   padding: 0.6rem 1.5rem;
@@ -490,9 +490,9 @@
 }
 
 .upload-files-btn:hover:not(:disabled) {
-  background: #7E22CE;
+  background: #528a43;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(168, 85, 247, 0.3);
+  box-shadow: 0 4px 12px rgba(79,155,80, 0.3);
 }
 
 .upload-files-btn:disabled {

@@ -12,7 +12,7 @@
 }
 
 .htb-auth-container-login {
-  background: linear-gradient(180deg, rgba(8, 4, 24, 0.98) 0%, rgba(4, 2, 16, 1) 100%);
+  background: linear-gradient(180deg, rgba(8,17,10, 0.98) 0%, rgba(4,2,16, 1) 100%);
   isolation: isolate;
 }
 
@@ -31,7 +31,7 @@
   left: 9%;
   width: 20rem;
   height: 20rem;
-  background: rgba(168, 85, 247, 0.22);
+  background: rgba(79,155,80, 0.22);
 }
 
 .htb-auth-container-login::after {
@@ -39,7 +39,7 @@
   bottom: 12%;
   width: 22rem;
   height: 22rem;
-  background: rgba(91, 33, 182, 0.2);
+  background: rgba(91,33,182, 0.2);
 }
 
 .htb-auth-login-blur-bg {
@@ -48,10 +48,10 @@
   z-index: 0;
   pointer-events: none;
   background:
-    linear-gradient(180deg, rgba(76, 29, 149, 0.16) 0%, rgba(17, 24, 39, 0.06) 38%, rgba(2, 6, 23, 0.75) 100%),
-    radial-gradient(circle at 20% 18%, rgba(192, 132, 252, 0.12), transparent 24%),
-    radial-gradient(circle at 78% 20%, rgba(126, 34, 206, 0.16), transparent 28%),
-    radial-gradient(circle at 55% 68%, rgba(76, 29, 149, 0.12), transparent 32%);
+    linear-gradient(180deg, rgba(52,95,55, 0.16) 0%, rgba(17,24,39, 0.06) 38%, rgba(2,6,23, 0.75) 100%),
+    radial-gradient(circle at 20% 18%, rgba(192,132,252, 0.12), transparent 24%),
+    radial-gradient(circle at 78% 20%, rgba(126,34,206, 0.16), transparent 28%),
+    radial-gradient(circle at 55% 68%, rgba(52,95,55, 0.12), transparent 32%);
 }
 
 /* Animated Grid Background */
@@ -112,12 +112,12 @@
   justify-content: center;
   width: 80px;
   height: 80px;
-  background: rgba(168, 85, 247, 0.1);
+  background: rgba(79,155,80, 0.1);
   border: 2px solid var(--primary);
   border-radius: var(--radius-lg);
   color: var(--primary);
   margin-bottom: 32px;
-  box-shadow: 0 0 30px rgba(168, 85, 247, 0.3);
+  box-shadow: 0 0 30px rgba(79,155,80, 0.3);
 }
 
 .htb-auth-brand-title {
@@ -143,7 +143,7 @@
 }
 
 .htb-gradient-text-login {
-  background: linear-gradient(135deg, #f5e7ff 0%, #d8b4fe 24%, #c084fc 48%, #8b5cf6 74%, #6d28d9 100%);
+  background: linear-gradient(135deg, #f5e7ff 0%, #c7d88f 24%, #a9ca67 48%, #8b5cf6 74%, #6d28d9 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -158,7 +158,7 @@
 
 .htb-auth-brand-subtitle-login {
   max-width: 420px;
-  color: rgba(226, 232, 240, 0.76);
+  color: rgba(226,232,240, 0.76);
 }
 
 /* Right Side - Auth Card */
@@ -168,15 +168,15 @@
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-xl);
   padding: 48px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 20px 60px rgba(0,0,0, 0.4);
 }
 
 .htb-auth-card-login {
   position: relative;
   overflow: hidden;
-  background: linear-gradient(180deg, rgba(14, 18, 36, 0.78) 0%, rgba(10, 14, 30, 0.56) 100%);
-  border: 1px solid rgba(192, 132, 252, 0.16);
-  box-shadow: 0 28px 80px rgba(2, 6, 23, 0.42);
+  background: linear-gradient(180deg, rgba(14,18,36, 0.78) 0%, rgba(10,14,30, 0.56) 100%);
+  border: 1px solid rgba(192,132,252, 0.16);
+  box-shadow: 0 28px 80px rgba(2,6,23, 0.42);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
 }
@@ -187,7 +187,7 @@
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), transparent 28%, transparent 72%, rgba(192, 132, 252, 0.08));
+  background: linear-gradient(135deg, rgba(255,255,255, 0.08), transparent 28%, transparent 72%, rgba(192,132,252, 0.08));
 }
 
 .htb-auth-card-header {
@@ -390,15 +390,15 @@
   align-items: flex-start;
   gap: 1rem;
   padding: 1rem;
-  background: rgba(168, 85, 247, 0.03);
-  border: 1px solid rgba(168, 85, 247, 0.1);
+  background: rgba(79,155,80, 0.03);
+  border: 1px solid rgba(79,155,80, 0.1);
   border-radius: 8px;
   transition: all 0.3s ease;
 }
 
 .htb-register-item:hover {
-  background: rgba(168, 85, 247, 0.05);
-  border-color: rgba(168, 85, 247, 0.2);
+  background: rgba(79,155,80, 0.05);
+  border-color: rgba(79,155,80, 0.2);
   transform: translateX(4px);
 }
 
@@ -409,7 +409,7 @@
   width: 36px;
   height: 36px;
   border-radius: 6px;
-  background: rgba(168, 85, 247, 0.1);
+  background: rgba(79,155,80, 0.1);
   color: var(--primary);
   flex-shrink: 0;
 }
@@ -434,8 +434,8 @@
 
 .htb-register-contact {
   padding: 1.5rem;
-  background: rgba(168, 85, 247, 0.03);
-  border: 1px solid rgba(168, 85, 247, 0.1);
+  background: rgba(79,155,80, 0.03);
+  border: 1px solid rgba(79,155,80, 0.1);
   border-radius: 8px;
   text-align: center;
 }
@@ -445,8 +445,8 @@
   align-items: center;
   gap: 0.75rem;
   padding: 0.875rem 1.5rem;
-  background: linear-gradient(135deg, rgba(168, 85, 247, 0.1), rgba(168, 85, 247, 0.1));
-  border: 1px solid rgba(168, 85, 247, 0.3);
+  background: linear-gradient(135deg, rgba(79,155,80, 0.1), rgba(79,155,80, 0.1));
+  border: 1px solid rgba(79,155,80, 0.3);
   border-radius: 8px;
   color: var(--accent);
   font-weight: 600;
@@ -456,8 +456,8 @@
 }
 
 .htb-register-email-button:hover {
-  background: linear-gradient(135deg, rgba(168, 85, 247, 0.15), rgba(168, 85, 247, 0.15));
+  background: linear-gradient(135deg, rgba(79,155,80, 0.15), rgba(79,155,80, 0.15));
   border-color: var(--accent);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(168, 85, 247, 0.2);
+  box-shadow: 0 4px 12px rgba(79,155,80, 0.2);
 }

@@ -27,13 +27,13 @@
   transform: translateX(-50%);
   width: 50px;
   height: 3px;
-  background: linear-gradient(90deg, #D8B4FE, #A855F7);
+  background: linear-gradient(90deg, #c7d88f, #4f9b50);
   border-radius: 3px;
 }
 
 .highlight {
-  color: #A855F7;
-  text-shadow: 0 0 10px rgba(168, 85, 247, 0.5);
+  color: #4f9b50;
+  text-shadow: 0 0 10px rgba(79,155,80, 0.5);
 }
 
 .forum-subtitle {
@@ -44,7 +44,7 @@
 }
 
 .new-thread-button {
-  background: linear-gradient(90deg, #D8B4FE, #A855F7);
+  background: linear-gradient(90deg, #c7d88f, #4f9b50);
   color: #0a0e17;
   font-weight: 600;
   padding: 0.75rem 1.5rem;
@@ -60,7 +60,7 @@
 
 .new-thread-button:hover {
   transform: translateY(-3px);
-  box-shadow: 0 10px 20px rgba(168, 85, 247, 0.2);
+  box-shadow: 0 10px 20px rgba(79,155,80, 0.2);
 }
 
 .button-icon {
@@ -96,7 +96,7 @@
   left: 0;
   width: 40px;
   height: 2px;
-  background: linear-gradient(90deg, #D8B4FE, #A855F7);
+  background: linear-gradient(90deg, #c7d88f, #4f9b50);
   border-radius: 2px;
 }
 
@@ -109,8 +109,8 @@
 .category-item {
   display: flex;
   align-items: center;
-  background-color: rgba(26, 46, 70, 0.5);
-  border: 1px solid #2D1451;
+  background-color: rgba(26,46,70, 0.5);
+  border: 1px solid #1d3924;
   border-radius: 8px;
   padding: 1rem;
   cursor: pointer;
@@ -119,15 +119,15 @@
 }
 
 .category-item:hover {
-  background-color: rgba(26, 46, 70, 0.8);
+  background-color: rgba(26,46,70, 0.8);
   transform: translateX(5px);
-  border-color: #A855F7;
+  border-color: #4f9b50;
 }
 
 .category-item.active {
-  background-color: rgba(168, 85, 247, 0.1);
-  border-color: #A855F7;
-  box-shadow: 0 0 15px rgba(168, 85, 247, 0.2);
+  background-color: rgba(79,155,80, 0.1);
+  border-color: #4f9b50;
+  box-shadow: 0 0 15px rgba(79,155,80, 0.2);
 }
 
 .category-icon {
@@ -152,8 +152,8 @@
 }
 
 .category-count {
-  background-color: rgba(168, 85, 247, 0.2);
-  color: #A855F7;
+  background-color: rgba(79,155,80, 0.2);
+  color: #4f9b50;
   font-weight: 600;
   padding: 0.25rem 0.5rem;
   border-radius: 20px;
@@ -164,8 +164,8 @@
 
 /* Threads Section */
 .threads-section {
-  background-color: rgba(26, 46, 70, 0.5);
-  border: 1px solid #2D1451;
+  background-color: rgba(26,46,70, 0.5);
+  border: 1px solid #1d3924;
   border-radius: 8px;
   overflow: hidden;
 }
@@ -175,8 +175,8 @@
   justify-content: space-between;
   align-items: center;
   padding: 1.5rem;
-  background-color: rgba(15, 25, 35, 0.8);
-  border-bottom: 1px solid #2D1451;
+  background-color: rgba(15,25,35, 0.8);
+  border-bottom: 1px solid #1d3924;
 }
 
 .threads-header h2 {
@@ -197,7 +197,7 @@
 }
 
 .stat-value {
-  color: #A855F7;
+  color: #4f9b50;
   font-weight: 700;
   font-size: 1.2rem;
 }
@@ -220,7 +220,7 @@
 }
 
 .create-first-thread {
-  background: linear-gradient(90deg, #D8B4FE, #A855F7);
+  background: linear-gradient(90deg, #c7d88f, #4f9b50);
   color: #0a0e17;
   font-weight: 600;
   padding: 0.75rem 1.5rem;
@@ -234,7 +234,7 @@
 
 .create-first-thread:hover {
   transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(168, 85, 247, 0.2);
+  box-shadow: 0 5px 15px rgba(79,155,80, 0.2);
 }
 
 /* Thread List */
@@ -242,7 +242,7 @@
   display: grid;
   grid-template-columns: 3fr 1fr 1fr 2fr;
   padding: 1rem 1.5rem;
-  background-color: rgba(15, 25, 35, 0.5);
+  background-color: rgba(15,25,35, 0.5);
   color: #a0a0a0;
   font-size: 0.9rem;
   font-weight: 500;
@@ -254,7 +254,7 @@
   display: grid;
   grid-template-columns: 3fr 1fr 1fr 2fr;
   padding: 1.25rem 1.5rem;
-  border-bottom: 1px solid #2D1451;
+  border-bottom: 1px solid #1d3924;
   text-decoration: none;
   color: inherit;
   position: relative;
@@ -266,11 +266,11 @@
 }
 
 .thread-item:hover {
-  background-color: rgba(168, 85, 247, 0.05);
+  background-color: rgba(79,155,80, 0.05);
 }
 
 .thread-item.pinned {
-  background-color: rgba(255, 215, 0, 0.05);
+  background-color: rgba(255,215,0, 0.05);
 }
 
 .pinned-indicator {
@@ -292,7 +292,7 @@
 }
 
 .thread-item:hover .thread-title h3 {
-  color: #A855F7;
+  color: #4f9b50;
 }
 
 .thread-meta {
@@ -304,38 +304,38 @@
 }
 
 .thread-author {
-  color: #D8B4FE;
+  color: #c7d88f;
 }
 
 .thread-category {
   padding: 0.2rem 0.5rem;
   border-radius: 20px;
   font-size: 0.75rem;
-  background-color: rgba(26, 46, 70, 0.8);
+  background-color: rgba(26,46,70, 0.8);
 }
 
 .thread-category.general {
-  background-color: rgba(0, 150, 255, 0.2);
+  background-color: rgba(0,150,255, 0.2);
   color: #0096ff;
 }
 
 .thread-category.challenges {
-  background-color: rgba(255, 165, 0, 0.2);
+  background-color: rgba(255,165,0, 0.2);
   color: #ffa500;
 }
 
 .thread-category.tools {
-  background-color: rgba(128, 0, 128, 0.2);
+  background-color: rgba(128,0,128, 0.2);
   color: #e066ff;
 }
 
 .thread-category.events {
-  background-color: rgba(255, 0, 0, 0.2);
+  background-color: rgba(255,0,0, 0.2);
   color: #ff5555;
 }
 
 .thread-category.introductions {
-  background-color: rgba(0, 255, 0, 0.2);
+  background-color: rgba(0,255,0, 0.2);
   color: #00ff00;
 }
 
@@ -354,7 +354,7 @@
 }
 
 .last-reply-author {
-  color: #D8B4FE;
+  color: #c7d88f;
   font-size: 0.9rem;
   margin-bottom: 0.25rem;
 }
@@ -377,9 +377,9 @@
 .loading-spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid rgba(168, 85, 247, 0.3);
+  border: 3px solid rgba(79,155,80, 0.3);
   border-radius: 50%;
-  border-top-color: #A855F7;
+  border-top-color: #4f9b50;
   animation: spin 1s ease-in-out infinite;
   margin-bottom: 1rem;
 }
@@ -389,8 +389,8 @@
 }
 
 .error {
-  background-color: rgba(255, 0, 0, 0.1);
-  border: 1px solid rgba(255, 0, 0, 0.3);
+  background-color: rgba(255,0,0, 0.1);
+  border: 1px solid rgba(255,0,0, 0.3);
   color: #ff6b6b;
   padding: 1rem;
   border-radius: 4px;

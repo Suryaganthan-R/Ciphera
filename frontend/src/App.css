@@ -12,8 +12,8 @@
   flex-direction: column;
   position: relative;
   background:
-    radial-gradient(circle at top, rgba(168, 85, 247, 0.14), transparent 28%),
-    radial-gradient(circle at 84% 12%, rgba(88, 28, 135, 0.2), transparent 30%),
+    radial-gradient(circle at top, rgba(79,155,80, 0.14), transparent 28%),
+    radial-gradient(circle at 84% 12%, rgba(32,63,41, 0.2), transparent 30%),
     var(--bg-primary);
   color: var(--text-primary);
 }
@@ -165,11 +165,11 @@
   padding-bottom: 0;
   padding-left: 0;
   background:
-    linear-gradient(180deg, rgba(107, 33, 168, 0.22) 0%, rgba(59, 7, 100, 0.16) 34%, rgba(0, 0, 0, 0.92) 100%),
-    radial-gradient(circle at 15% 18%, rgba(168, 85, 247, 0.18), transparent 24%),
-    radial-gradient(circle at 82% 12%, rgba(88, 28, 135, 0.2), transparent 28%),
-    radial-gradient(circle at 72% 78%, rgba(76, 29, 149, 0.14), transparent 30%),
-    linear-gradient(180deg, rgba(8, 4, 24, 0.95) 0%, rgba(0, 0, 0, 1) 100%);
+    linear-gradient(180deg, rgba(53,107,63, 0.22) 0%, rgba(23,43,30, 0.16) 34%, rgba(0,0,0, 0.92) 100%),
+    radial-gradient(circle at 15% 18%, rgba(79,155,80, 0.18), transparent 24%),
+    radial-gradient(circle at 82% 12%, rgba(32,63,41, 0.2), transparent 28%),
+    radial-gradient(circle at 72% 78%, rgba(52,95,55, 0.14), transparent 30%),
+    linear-gradient(180deg, rgba(8,17,10, 0.95) 0%, rgba(0,0,0, 1) 100%);
 }
 
 .main-content.main-content--admin-create-user {
@@ -188,7 +188,7 @@
 
 /* Footer Styles */
 .footer {
-  background: rgba(6, 0, 16, 0.92);
+  background: rgba(6,0,16, 0.92);
   color: var(--text-secondary);
   padding: 0;
   border-top: 1px solid var(--border-primary);
@@ -244,18 +244,18 @@
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  background: rgba(46, 16, 101, 0.3);
-  border: 1px solid rgba(168, 85, 247, 0.18);
+  background: rgba(46,16,101, 0.3);
+  border: 1px solid rgba(79,155,80, 0.18);
   color: var(--text-secondary);
   text-decoration: none;
   transition: all 0.3s ease;
 }
 
 .social-link:hover {
-  background: linear-gradient(180deg, #d8b4fe 0%, #a855f7 100%);
+  background: linear-gradient(180deg, #c7d88f 0%, #4f9b50 100%);
   color: #05010b;
   transform: translateY(-3px);
-  box-shadow: 0 10px 24px rgba(168, 85, 247, 0.24);
+  box-shadow: 0 10px 24px rgba(79,155,80, 0.24);
 }
 
 .social-icon {
@@ -290,7 +290,7 @@
   left: 0;
   width: 30px;
   height: 2px;
-  background: linear-gradient(90deg, #d8b4fe, #a855f7);
+  background: linear-gradient(90deg, #c7d88f, #4f9b50);
   border-radius: 2px;
 }
 
@@ -315,7 +315,7 @@
 }
 
 .footer-link:hover {
-  color: #d8b4fe;
+  color: #c7d88f;
 }
 
 .footer-link:hover::after {
@@ -323,10 +323,10 @@
 }
 
 .footer-bottom {
-  background: rgba(4, 0, 10, 0.86);
+  background: rgba(4,0,10, 0.86);
   text-align: center;
   padding: 1.5rem;
-  border-top: 1px solid rgba(46, 16, 101, 0.58);
+  border-top: 1px solid rgba(46,16,101, 0.58);
 }
 
 .footer-disclaimer {

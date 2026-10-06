@@ -11,7 +11,6 @@ function EventStatus() {
   return (
     <div style={{ maxWidth: 900, margin: '40px auto', padding: '24px', color: '#e5eefc' }}>
       <h1>Event Status</h1>
-      <p style={{ opacity: 0.85 }}>Live CTF competition state (CTFd-style)</p>
 
       {error && (
         <div style={{ background: 'rgba(239,68,68,.2)', border: '1px solid #ef4444', padding: 12, borderRadius: 8, marginBottom: 16 }}>

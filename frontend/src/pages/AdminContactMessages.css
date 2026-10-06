@@ -3,20 +3,20 @@
   --htb-bg-primary: #05010B;
   --htb-bg-secondary: #111827;
   --htb-bg-tertiary: #1a1f35;
-  --htb-primary: #A855F7;
+  --htb-primary: #4f9b50;
   --htb-success: #00cb70;
   --htb-danger: #ff3b3b;
   --htb-warning: #ffb800;
   --htb-text-primary: #ffffff;
   --htb-text-secondary: #94a3b8;
   --htb-text-muted: #64748b;
-  --htb-border: rgba(255, 255, 255, 0.1);
+  --htb-border: rgba(255,255,255, 0.1);
 }
 
 .htb-messages-container {
   position: relative;
   min-height: 100vh;
-  background: linear-gradient(180deg, rgba(8, 4, 24, 0.95) 0%, rgba(0, 0, 0, 1) 100%);
+  background: linear-gradient(180deg, rgba(8,17,10, 0.95) 0%, rgba(0,0,0, 1) 100%);
   color: var(--htb-text-primary);
   padding: 0.85rem 1.5rem 3rem;
   overflow-x: hidden;
@@ -26,10 +26,10 @@
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(180deg, rgba(107, 33, 168, 0.22) 0%, rgba(59, 7, 100, 0.16) 34%, rgba(0, 0, 0, 0.92) 100%),
-    radial-gradient(circle at 15% 18%, rgba(168, 85, 247, 0.18), transparent 24%),
-    radial-gradient(circle at 82% 12%, rgba(88, 28, 135, 0.2), transparent 28%),
-    radial-gradient(circle at 72% 78%, rgba(76, 29, 149, 0.14), transparent 30%);
+    linear-gradient(180deg, rgba(53,107,63, 0.22) 0%, rgba(23,43,30, 0.16) 34%, rgba(0,0,0, 0.92) 100%),
+    radial-gradient(circle at 15% 18%, rgba(79,155,80, 0.18), transparent 24%),
+    radial-gradient(circle at 82% 12%, rgba(32,63,41, 0.2), transparent 28%),
+    radial-gradient(circle at 72% 78%, rgba(52,95,55, 0.14), transparent 30%);
   pointer-events: none;
   z-index: 0;
 }
@@ -48,7 +48,7 @@
   left: 5%;
   width: 18rem;
   height: 18rem;
-  background: rgba(168, 85, 247, 0.24);
+  background: rgba(79,155,80, 0.24);
 }
 
 .htb-messages-orb--secondary {
@@ -56,7 +56,7 @@
   right: 10%;
   width: 22rem;
   height: 22rem;
-  background: rgba(88, 28, 135, 0.2);
+  background: rgba(32,63,41, 0.2);
 }
 
 .htb-messages-orb--tertiary {
@@ -64,7 +64,7 @@
   left: 34%;
   width: 16rem;
   height: 16rem;
-  background: rgba(59, 7, 100, 0.24);
+  background: rgba(23,43,30, 0.24);
 }
 
 /* Header */
@@ -77,7 +77,7 @@
   width: min(100%, 1420px);
   margin: 0 auto 1.15rem;
   padding-bottom: 1rem;
-  border-bottom: 1px solid rgba(139, 92, 246, 0.14);
+  border-bottom: 1px solid rgba(95,148,79, 0.14);
 }
 
 .htb-messages-title-section {
@@ -97,7 +97,7 @@
 }
 
 .htb-text-primary {
-  background: linear-gradient(135deg, #d8b4fe 0%, #a855f7 100%);
+  background: linear-gradient(135deg, #c7d88f 0%, #4f9b50 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -121,8 +121,8 @@
   gap: 0.5rem;
   min-height: 2.45rem;
   padding: 0.5rem 0.95rem;
-  background: linear-gradient(150deg, rgba(22, 28, 45, 0.62), rgba(15, 23, 42, 0.34));
-  border: 1px solid rgba(139, 92, 246, 0.2);
+  background: linear-gradient(150deg, rgba(22,28,45, 0.62), rgba(15,23,42, 0.34));
+  border: 1px solid rgba(95,148,79, 0.2);
   border-radius: 8px;
   color: #dbe4f2;
   font-size: 0.88rem;
@@ -134,13 +134,13 @@
 }
 
 .htb-refresh-btn:hover {
-  border-color: rgba(52, 211, 153, 0.48);
+  border-color: rgba(52,211,153, 0.48);
   color: #34d399;
 }
 
 .htb-back-btn:hover {
-  border-color: rgba(168, 85, 247, 0.52);
-  color: #c084fc;
+  border-color: rgba(79,155,80, 0.52);
+  color: #a9ca67;
   transform: translateX(-3px);
 }
 
@@ -159,13 +159,13 @@
 }
 
 .htb-alert-error {
-  background: rgba(255, 59, 59, 0.15);
+  background: rgba(255,59,59, 0.15);
   border: 1px solid var(--htb-danger);
   color: var(--htb-danger);
 }
 
 .htb-alert-success {
-  background: rgba(0, 203, 112, 0.15);
+  background: rgba(0,203,112, 0.15);
   border: 1px solid var(--htb-success);
   color: var(--htb-success);
 }
@@ -185,15 +185,15 @@
 /* Messages List */
 .htb-messages-list {
   background:
-    linear-gradient(165deg, rgba(17, 24, 39, 0.52) 0%, rgba(15, 23, 42, 0.3) 100%),
-    radial-gradient(circle at 12% 0%, rgba(196, 181, 253, 0.1), transparent 42%);
-  border: 1px solid rgba(139, 92, 246, 0.2);
+    linear-gradient(165deg, rgba(17,24,39, 0.52) 0%, rgba(15,23,42, 0.3) 100%),
+    radial-gradient(circle at 12% 0%, rgba(194,214,169, 0.1), transparent 42%);
+  border: 1px solid rgba(95,148,79, 0.2);
   border-radius: 12px;
   padding: 0.95rem;
   overflow-y: auto;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    0 18px 46px rgba(2, 6, 23, 0.32);
+    inset 0 1px 0 rgba(255,255,255, 0.06),
+    0 18px 46px rgba(2,6,23, 0.32);
   backdrop-filter: blur(20px) saturate(125%);
   -webkit-backdrop-filter: blur(20px) saturate(125%);
 }
@@ -201,7 +201,7 @@
 .htb-list-header {
   margin-bottom: 0.85rem;
   padding-bottom: 0.65rem;
-  border-bottom: 1px solid rgba(139, 92, 246, 0.22);
+  border-bottom: 1px solid rgba(95,148,79, 0.22);
 }
 
 .htb-list-header h2 {
@@ -220,8 +220,8 @@
 }
 
 .htb-message-card {
-  background: linear-gradient(150deg, rgba(30, 41, 59, 0.42), rgba(15, 23, 42, 0.34));
-  border: 1px solid rgba(139, 92, 246, 0.16);
+  background: linear-gradient(150deg, rgba(30,41,59, 0.42), rgba(15,23,42, 0.34));
+  border: 1px solid rgba(95,148,79, 0.16);
   border-radius: 10px;
   padding: 0.72rem;
   cursor: pointer;
@@ -229,13 +229,13 @@
 }
 
 .htb-message-card:hover {
-  border-color: rgba(168, 85, 247, 0.48);
-  box-shadow: 0 10px 26px rgba(88, 28, 135, 0.25);
+  border-color: rgba(79,155,80, 0.48);
+  box-shadow: 0 10px 26px rgba(32,63,41, 0.25);
 }
 
 .htb-message-card.selected {
-  border-color: rgba(168, 85, 247, 0.65);
-  background: linear-gradient(150deg, rgba(88, 28, 135, 0.24), rgba(30, 41, 59, 0.45));
+  border-color: rgba(79,155,80, 0.65);
+  background: linear-gradient(150deg, rgba(32,63,41, 0.24), rgba(30,41,59, 0.45));
 }
 
 .htb-message-card-header {
@@ -263,7 +263,7 @@
 }
 
 .htb-delete-btn-quick:hover {
-  background: rgba(255, 59, 59, 0.2);
+  background: rgba(255,59,59, 0.2);
 }
 
 .htb-message-preview {
@@ -278,7 +278,7 @@
   justify-content: space-between;
   align-items: center;
   padding-top: 0.55rem;
-  border-top: 1px solid rgba(139, 92, 246, 0.15);
+  border-top: 1px solid rgba(95,148,79, 0.15);
 }
 
 .htb-sender,
@@ -293,15 +293,15 @@
 /* Message Detail */
 .htb-message-detail {
   background:
-    linear-gradient(165deg, rgba(17, 24, 39, 0.52) 0%, rgba(15, 23, 42, 0.3) 100%),
-    radial-gradient(circle at 12% 0%, rgba(196, 181, 253, 0.1), transparent 42%);
-  border: 1px solid rgba(139, 92, 246, 0.2);
+    linear-gradient(165deg, rgba(17,24,39, 0.52) 0%, rgba(15,23,42, 0.3) 100%),
+    radial-gradient(circle at 12% 0%, rgba(194,214,169, 0.1), transparent 42%);
+  border: 1px solid rgba(95,148,79, 0.2);
   border-radius: 12px;
   padding: 1.05rem;
   overflow-y: auto;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    0 22px 58px rgba(2, 6, 23, 0.35);
+    inset 0 1px 0 rgba(255,255,255, 0.06),
+    0 22px 58px rgba(2,6,23, 0.35);
   backdrop-filter: blur(22px) saturate(125%);
   -webkit-backdrop-filter: blur(22px) saturate(125%);
 }
@@ -312,7 +312,7 @@
   align-items: center;
   margin-bottom: 1rem;
   padding-bottom: 0.8rem;
-  border-bottom: 1px solid rgba(139, 92, 246, 0.2);
+  border-bottom: 1px solid rgba(95,148,79, 0.2);
 }
 
 .htb-detail-header h2 {
@@ -354,8 +354,8 @@
   align-items: center;
   gap: 1rem;
   padding: 0.72rem 0.8rem;
-  background: linear-gradient(150deg, rgba(30, 41, 59, 0.4), rgba(15, 23, 42, 0.3));
-  border: 1px solid rgba(139, 92, 246, 0.16);
+  background: linear-gradient(150deg, rgba(30,41,59, 0.4), rgba(15,23,42, 0.3));
+  border: 1px solid rgba(95,148,79, 0.16);
   border-radius: 8px;
 }
 
@@ -381,8 +381,8 @@
 }
 
 .htb-detail-content {
-  background: linear-gradient(150deg, rgba(30, 41, 59, 0.4), rgba(15, 23, 42, 0.3));
-  border: 1px solid rgba(139, 92, 246, 0.16);
+  background: linear-gradient(150deg, rgba(30,41,59, 0.4), rgba(15,23,42, 0.3));
+  border: 1px solid rgba(95,148,79, 0.16);
   border-radius: 10px;
   padding: 0.9rem;
 }
@@ -432,8 +432,8 @@
 .htb-empty-state {
   text-align: center;
   padding: 1.8rem 1rem;
-  background: linear-gradient(150deg, rgba(30, 41, 59, 0.34), rgba(15, 23, 42, 0.3));
-  border: 1px dashed rgba(139, 92, 246, 0.2);
+  background: linear-gradient(150deg, rgba(30,41,59, 0.34), rgba(15,23,42, 0.3));
+  border: 1px dashed rgba(95,148,79, 0.2);
   border-radius: 8px;
 }
 

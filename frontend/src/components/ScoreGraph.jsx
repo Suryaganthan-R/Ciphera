@@ -104,14 +104,14 @@ const ScoreGraph = ({ type = 'teams', limit = 10, height = '400px' }) => {
           type: 'value',
           axisLine: { lineStyle: { color: '#4a5568' } },
           axisLabel: { color: '#a0aec0' },
-          splitLine: { lineStyle: { color: 'rgba(74, 85, 104, 0.2)' } }
+          splitLine: { lineStyle: { color: 'rgba(74,85,104, 0.2)' } }
         },
         xAxis: {
           type: 'time',
           boundaryGap: false,
           axisLine: { lineStyle: { color: '#4a5568' } },
           axisLabel: { color: '#a0aec0' },
-          splitLine: { lineStyle: { color: 'rgba(74, 85, 104, 0.2)' } }
+          splitLine: { lineStyle: { color: 'rgba(74,85,104, 0.2)' } }
         },
         series,
         backgroundColor: 'transparent',
@@ -123,7 +123,7 @@ const ScoreGraph = ({ type = 'teams', limit = 10, height = '400px' }) => {
             filterMode: 'filter',
             height: 20,
             top: 35,
-            fillerColor: 'rgba(233, 236, 241, 0.4)'
+            fillerColor: 'rgba(233,236,241, 0.4)'
           }
         ]
       });

@@ -17,8 +17,8 @@
 }
 
 .highlight {
-  color: #A855F7;
-  text-shadow: 0 0 10px rgba(168, 85, 247, 0.5);
+  color: #4f9b50;
+  text-shadow: 0 0 10px rgba(79,155,80, 0.5);
 }
 
 .tutorials-header p {
@@ -50,13 +50,13 @@
 .search-box input {
   width: 100%;
   padding: 1.2rem 1.5rem 1.2rem 3.5rem;
-  background: rgba(15, 25, 35, 0.8);
-  border: 1px solid rgba(168, 85, 247, 0.2);
+  background: rgba(15,25,35, 0.8);
+  border: 1px solid rgba(79,155,80, 0.2);
   border-radius: 12px;
   color: #ffffff;
   font-size: 1.1rem;
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 0 15px rgba(168, 85, 247, 0.1);
+  box-shadow: 0 0 15px rgba(79,155,80, 0.1);
   backdrop-filter: blur(5px);
   transform-style: preserve-3d;
   letter-spacing: 0.5px;
@@ -66,14 +66,14 @@
 
 .search-box input:focus {
   outline: none;
-  border-color: #A855F7;
-  box-shadow: 0 0 30px rgba(168, 85, 247, 0.3);
+  border-color: #4f9b50;
+  box-shadow: 0 0 30px rgba(79,155,80, 0.3);
   transform: translateY(-2px) translateZ(20px);
-  background: rgba(15, 25, 35, 0.9);
+  background: rgba(15,25,35, 0.9);
 }
 
 .search-box input::placeholder {
-  color: rgba(160, 160, 160, 0.7);
+  color: rgba(160,160,160, 0.7);
   font-style: italic;
   letter-spacing: 1px;
   text-transform: uppercase;
@@ -85,9 +85,9 @@
   left: 1.2rem;
   top: 50%;
   transform: translateY(-50%);
-  color: #A855F7;
+  color: #4f9b50;
   font-size: 1.3rem;
-  text-shadow: 0 0 10px rgba(168, 85, 247, 0.5);
+  text-shadow: 0 0 10px rgba(79,155,80, 0.5);
   animation: pulse 2s infinite;
   z-index: 2;
 }
@@ -115,7 +115,7 @@
   left: -2px;
   right: -2px;
   bottom: -2px;
-  background: linear-gradient(45deg, #A855F7, #D8B4FE, #A855F7);
+  background: linear-gradient(45deg, #4f9b50, #c7d88f, #4f9b50);
   border-radius: 14px;
   z-index: -1;
   opacity: 0;
@@ -144,7 +144,7 @@
   left: 0;
   width: 100%;
   height: 2px;
-  background: linear-gradient(90deg, transparent, #A855F7, transparent);
+  background: linear-gradient(90deg, transparent, #4f9b50, transparent);
   opacity: 0;
   transition: opacity 0.3s ease;
   z-index: 1;
@@ -181,7 +181,7 @@
   position: absolute;
   width: 2px;
   height: 2px;
-  background: #A855F7;
+  background: #4f9b50;
   border-radius: 50%;
   opacity: 0;
   animation: particleFloat 3s infinite;
@@ -226,9 +226,9 @@
   height: 100%;
   background: linear-gradient(
     135deg,
-    rgba(168, 85, 247, 0.05) 0%,
-    rgba(196, 181, 253, 0.05) 50%,
-    rgba(168, 85, 247, 0.05) 100%
+    rgba(79,155,80, 0.05) 0%,
+    rgba(194,214,169, 0.05) 50%,
+    rgba(79,155,80, 0.05) 100%
   );
   border-radius: 12px;
   z-index: 0;
@@ -260,8 +260,8 @@
 
 .filter-group select {
   padding: 0.8rem 1rem;
-  background: rgba(15, 25, 35, 0.8);
-  border: 1px solid rgba(168, 85, 247, 0.2);
+  background: rgba(15,25,35, 0.8);
+  border: 1px solid rgba(79,155,80, 0.2);
   border-radius: 4px;
   color: #ffffff;
   font-size: 1rem;
@@ -271,8 +271,8 @@
 
 .filter-group select:focus {
   outline: none;
-  border-color: #A855F7;
-  box-shadow: 0 0 10px rgba(168, 85, 247, 0.2);
+  border-color: #4f9b50;
+  box-shadow: 0 0 10px rgba(79,155,80, 0.2);
 }
 
 .tutorials-grid {
@@ -282,10 +282,10 @@
 }
 
 .tutorial-card {
-  background: rgba(26, 46, 70, 0.5);
+  background: rgba(26,46,70, 0.5);
   border-radius: 8px;
   padding: 1.5rem;
-  border: 1px solid #2D1451;
+  border: 1px solid #1d3924;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
   position: relative;
   overflow: hidden;
@@ -295,7 +295,7 @@
 
 .tutorial-card:hover {
   transform: translateY(-5px);
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 10px 20px rgba(0,0,0, 0.2);
 }
 
 .tutorial-level {
@@ -310,21 +310,21 @@
 }
 
 .tutorial-level.beginner {
-  background: rgba(168, 85, 247, 0.1);
-  color: #A855F7;
-  border: 1px solid rgba(168, 85, 247, 0.3);
+  background: rgba(79,155,80, 0.1);
+  color: #4f9b50;
+  border: 1px solid rgba(79,155,80, 0.3);
 }
 
 .tutorial-level.intermediate {
-  background: rgba(255, 170, 0, 0.1);
+  background: rgba(255,170,0, 0.1);
   color: #ffaa00;
-  border: 1px solid rgba(255, 170, 0, 0.3);
+  border: 1px solid rgba(255,170,0, 0.3);
 }
 
 .tutorial-level.advanced {
-  background: rgba(255, 0, 85, 0.1);
+  background: rgba(255,0,85, 0.1);
   color: #ff0055;
-  border: 1px solid rgba(255, 0, 85, 0.3);
+  border: 1px solid rgba(255,0,85, 0.3);
 }
 
 .tutorial-content {
@@ -339,7 +339,7 @@
 }
 
 .tutorial-duration {
-  color: #A855F7;
+  color: #4f9b50;
   font-size: 0.9rem;
   margin-bottom: 1rem;
   display: flex;
@@ -389,7 +389,7 @@
 
 .prerequisites-list li:before {
   content: '•';
-  color: #A855F7;
+  color: #4f9b50;
   position: absolute;
   left: 0;
 }
@@ -410,9 +410,9 @@
 }
 
 .start-tutorial {
-  background: linear-gradient(135deg, #2D1451, #0f1f2b);
-  color: #A855F7;
-  border: 1px solid #A855F7;
+  background: linear-gradient(135deg, #1d3924, #0f1f2b);
+  color: #4f9b50;
+  border: 1px solid #4f9b50;
   padding: 0.75rem 1.5rem;
   border-radius: 4px;
   cursor: pointer;
@@ -426,10 +426,10 @@
 }
 
 .start-tutorial:hover {
-  background: #A855F7;
+  background: #4f9b50;
   color: #0a1929;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(168, 85, 247, 0.3);
+  box-shadow: 0 4px 12px rgba(79,155,80, 0.3);
 }
 
 .arrow-icon {
@@ -443,17 +443,17 @@
 .loading-container, .error-container, .no-tutorials {
   text-align: center;
   padding: 3rem;
-  background: rgba(26, 46, 70, 0.5);
+  background: rgba(26,46,70, 0.5);
   border-radius: 8px;
-  border: 1px solid #2D1451;
+  border: 1px solid #1d3924;
 }
 
 .loading-spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid rgba(168, 85, 247, 0.1);
+  border: 3px solid rgba(79,155,80, 0.1);
   border-radius: 50%;
-  border-top-color: #A855F7;
+  border-top-color: #4f9b50;
   animation: spin 1s linear infinite;
   margin: 0 auto 1rem;
 }
@@ -467,11 +467,11 @@
 .error-icon, .no-results-icon {
   font-size: 3rem;
   margin-bottom: 1rem;
-  color: #A855F7;
+  color: #4f9b50;
 }
 
 .error-container button, .no-tutorials button {
-  background: #A855F7;
+  background: #4f9b50;
   color: #0a1929;
   border: none;
   padding: 0.8rem 1.5rem;
@@ -483,7 +483,7 @@
 }
 
 .error-container button:hover, .no-tutorials button:hover {
-  background: #7E22CE;
+  background: #528a43;
   transform: translateY(-2px);
 }
 

@@ -22,18 +22,18 @@
   margin-bottom: 0.8rem;
 }
 
-.alert.success { background: rgba(16, 185, 129, 0.2); border: 1px solid #10b981; }
-.alert.error { background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; }
+.alert.success { background: rgba(16,185,129, 0.2); border: 1px solid #10b981; }
+.alert.error { background: rgba(239,68,68, 0.2); border: 1px solid #ef4444; }
 
 .status-card,
 .times-form,
 .action-card {
-  background: linear-gradient(180deg, rgba(17, 24, 39, 0.42) 0%, rgba(15, 23, 42, 0.2) 100%);
-  border: 1px solid rgba(139, 92, 246, 0.2);
+  background: linear-gradient(180deg, rgba(17,24,39, 0.42) 0%, rgba(15,23,42, 0.2) 100%);
+  border: 1px solid rgba(95,148,79, 0.2);
   border-radius: 12px;
   padding: 0.95rem;
   margin-bottom: 0.85rem;
-  box-shadow: 0 18px 40px rgba(2, 6, 23, 0.28);
+  box-shadow: 0 18px 40px rgba(2,6,23, 0.28);
   backdrop-filter: blur(22px);
   -webkit-backdrop-filter: blur(22px);
 }
@@ -69,17 +69,17 @@
 }
 
 .times-form input {
-  background: rgba(10, 14, 26, 0.62);
+  background: rgba(10,14,26, 0.62);
   color: #e5eefc;
-  border: 1px solid rgba(139, 92, 246, 0.2);
+  border: 1px solid rgba(95,148,79, 0.2);
   border-radius: 8px;
   padding: 0.58rem 0.75rem;
 }
 
 .admin-event-control-page button {
-  background: rgba(49, 18, 87, 0.24);
-  color: rgba(226, 232, 240, 0.82);
-  border: 1px solid rgba(139, 92, 246, 0.18);
+  background: rgba(29,57,36, 0.24);
+  color: rgba(226,232,240, 0.82);
+  border: 1px solid rgba(95,148,79, 0.18);
   min-height: 2.35rem;
   padding: 0.45rem 0.85rem;
   font-size: 0.86rem;
@@ -90,8 +90,8 @@
 }
 
 .admin-event-control-page button:hover:not(:disabled) {
-  border-color: rgba(168, 85, 247, 0.5);
-  color: #d8b4fe;
+  border-color: rgba(79,155,80, 0.5);
+  color: #c7d88f;
 }
 
 .admin-event-control-page button:disabled {
@@ -100,8 +100,8 @@
 }
 
 .admin-event-control-page button.danger {
-  background: rgba(127, 29, 29, 0.22);
-  border: 1px solid rgba(239, 68, 68, 0.35);
+  background: rgba(127,29,29, 0.22);
+  border: 1px solid rgba(239,68,68, 0.35);
   color: #f87171;
 }
 

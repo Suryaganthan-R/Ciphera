@@ -92,42 +92,42 @@ function Home() {
       title: "Web Exploitation",
       description: "Master XSS, SQL injection, and advanced web vulnerabilities",
       color: "#00ff88",
-      bgColor: "rgba(168, 85, 247, 0.1)"
+      bgColor: "rgba(79,155,80, 0.1)"
     },
     {
       icon: <Lock size={28} />,
       title: "Cryptography",
       description: "Break ciphers and understand cryptographic protocols",
-      color: "#A855F7",
-      bgColor: "rgba(168, 85, 247, 0.1)"
+      color: "#4f9b50",
+      bgColor: "rgba(79,155,80, 0.1)"
     },
     {
       icon: <Search size={28} />,
       title: "Forensics",
       description: "Investigate artifacts and recover hidden data",
       color: "#ff00ff",
-      bgColor: "rgba(255, 0, 255, 0.1)"
+      bgColor: "rgba(255,0,255, 0.1)"
     },
     {
       icon: <Cpu size={28} />,
       title: "Reverse Engineering",
       description: "Disassemble binaries, analyze code, and break protections",
       color: "#ff0055",
-      bgColor: "rgba(255, 0, 85, 0.1)"
+      bgColor: "rgba(255,0,85, 0.1)"
     },
     {
       icon: <Database size={28} />,
       title: "OSINT",
       description: "Open source intelligence and reconnaissance",
       color: "#ffc107",
-      bgColor: "rgba(255, 193, 7, 0.1)"
+      bgColor: "rgba(255,193,7, 0.1)"
     },
     {
       icon: <Network size={28} />,
       title: "Miscellaneous",
       description: "Unique challenges that don't fit traditional categories",
       color: "#bd00ff",
-      bgColor: "rgba(189, 0, 255, 0.1)"
+      bgColor: "rgba(189,0,255, 0.1)"
     }
   ];
 

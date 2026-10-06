@@ -25,7 +25,7 @@ const TEAM_COLORS = [
   '#FF6AC1', // Pink
   '#A8DADC', // Light Blue
   '#F77F00', // Orange
-  '#9D4EDD'  // Purple
+  '#4f9b50'  // Purple
 ];
 
 /**

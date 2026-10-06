@@ -2,6 +2,7 @@ import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, ChevronDown, LogOut, Settings, User, Users } from 'lucide-react';
+import cloverKingdomLogo from '../../../pic.png';
 import AuthContext from '../context/AuthContext';
 import { useSiteConfig } from '../context/SiteConfigContext';
 import axios from 'axios';
@@ -35,7 +36,7 @@ const adminLinks = [
 
 function Navbar() {
   const { isAuthenticated, user, logout } = useContext(AuthContext);
-  const { eventName, logoUrl } = useSiteConfig();
+  const { eventName } = useSiteConfig();
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isAdminMenuOpen, setIsAdminMenuOpen] = useState(false);
   const [unreadNoticeCount, setUnreadNoticeCount] = useState(0);
@@ -93,9 +94,9 @@ function Navbar() {
 
   const isActive = (path) => location.pathname === path;
   const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
-  const platformLogo = logoUrl || '/logo.jpeg';
+  const platformLogo = cloverKingdomLogo;
   const brandAccent = useMemo(() => {
-    const currentName = eventName || 'Ciphera';
+    const currentName = eventName || 'Clover CTF';
     const lowered = currentName.toLowerCase();
 
     if (lowered.endsWith('quest')) {
@@ -200,7 +201,7 @@ function Navbar() {
       <div className="cyber-navbar-container">
         <PillNav
           logo={platformLogo}
-          logoAlt={`${eventName || 'Ciphera'} logo`}
+          logoAlt={`${eventName || 'Clover CTF'} logo`}
           items={primaryNavItems}
           activeHref={location.pathname}
           className="cyber-navbar-pill"
@@ -210,7 +211,7 @@ function Navbar() {
           hoveredPillTextColor="#ffffff"
           pillTextColor="#000000"
           theme="light"
-          brandName={eventName || 'Ciphera'}
+          brandName={eventName || 'Clover CTF'}
           brandAccent={brandAccent}
           initialLoadAnimation={false}
           mobileExtraContent={renderMobileMenuExtras}

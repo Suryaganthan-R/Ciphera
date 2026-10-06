@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 
 const SiteConfigContext = createContext({
-  eventName: 'Ciphera',
+  eventName: 'Clover CTF',
   eventDescription: 'Capture The Flag platform',
   logoUrl: '',
   visibility: {
@@ -19,7 +19,7 @@ const SiteConfigContext = createContext({
 });
 
 export const SiteConfigProvider = ({ children }) => {
-  const [eventName, setEventName] = useState('Ciphera');
+  const [eventName, setEventName] = useState('Clover CTF');
   const [eventDescription, setEventDescription] = useState('Capture The Flag platform');
   const [logoUrl, setLogoUrl] = useState('');
   const [visibility, setVisibility] = useState({
@@ -35,7 +35,8 @@ export const SiteConfigProvider = ({ children }) => {
       const response = await axios.get('/api/configuration');
       const data = response?.data?.data || {};
 
-      setEventName(data.eventName || 'Ciphera');
+      const configuredName = data.eventName || 'Clover CTF';
+      setEventName(configuredName === 'Ciphera' ? 'Clover CTF' : configuredName);
       setEventDescription(data.eventDescription || 'Capture The Flag platform');
       setLogoUrl(data.logoUrl || '');
       setVisibility({

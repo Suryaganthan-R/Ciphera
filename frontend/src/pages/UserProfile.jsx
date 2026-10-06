@@ -262,8 +262,8 @@ function UserProfile() {
                   '& text': { fill: '#ffffff !important' },
                   '& .MuiChartsAxis-tickLabel': { fill: '#ffffff !important' },
                   '& .MuiChartsPolarAxis-tickLabel': { fill: '#ffffff !important' },
-                  '& [class*="MuiRadarGrid"] line': { stroke: 'rgba(255, 255, 255, 0.45) !important' },
-                  '& [class*="MuiRadarGrid"] path': { stroke: 'rgba(255, 255, 255, 0.45) !important' },
+                  '& [class*="MuiRadarGrid"] line': { stroke: 'rgba(255,255,255, 0.45) !important' },
+                  '& [class*="MuiRadarGrid"] path': { stroke: 'rgba(255,255,255, 0.45) !important' },
                   '& [class*="MuiRadarSeries"] path': { stroke: '#4f7cff !important' },
                   '& [class*="MuiRadarSeries"] circle': {
                     fill: '#4f7cff !important',

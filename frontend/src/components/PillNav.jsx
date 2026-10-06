@@ -17,7 +17,7 @@ function PillNav({
   brandAccent = '',
   mobileExtraContent,
 }) {
-  const fallbackLogo = '/assests/ciphera.jpeg';
+  const fallbackLogo = '/logo.jpeg';
   const trackRef = useRef(null);
   const itemRefs = useRef(new Map());
   const [hoveredHref, setHoveredHref] = useState('');

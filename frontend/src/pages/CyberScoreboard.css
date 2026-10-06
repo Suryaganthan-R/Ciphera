@@ -4,17 +4,17 @@
   position: relative;
   min-height: 100vh;
   overflow: hidden;
-  background: linear-gradient(180deg, rgba(8, 4, 24, 0.95) 0%, rgba(0, 0, 0, 1) 100%);
+  background: linear-gradient(180deg, rgba(8,17,10, 0.95) 0%, rgba(0,0,0, 1) 100%);
 }
 
 .scoreboard-page-bg {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(180deg, rgba(107, 33, 168, 0.3) 0%, rgba(59, 7, 100, 0.22) 34%, rgba(0, 0, 0, 0.9) 100%),
-    radial-gradient(circle at 15% 18%, rgba(168, 85, 247, 0.24), transparent 24%),
-    radial-gradient(circle at 82% 12%, rgba(88, 28, 135, 0.24), transparent 28%),
-    radial-gradient(circle at 72% 78%, rgba(76, 29, 149, 0.18), transparent 30%);
+    linear-gradient(180deg, rgba(53,107,63, 0.3) 0%, rgba(23,43,30, 0.22) 34%, rgba(0,0,0, 0.9) 100%),
+    radial-gradient(circle at 15% 18%, rgba(79,155,80, 0.24), transparent 24%),
+    radial-gradient(circle at 82% 12%, rgba(32,63,41, 0.24), transparent 28%),
+    radial-gradient(circle at 72% 78%, rgba(52,95,55, 0.18), transparent 30%);
   pointer-events: none;
 }
 
@@ -31,7 +31,7 @@
   left: 5%;
   width: 18rem;
   height: 18rem;
-  background: rgba(168, 85, 247, 0.24);
+  background: rgba(79,155,80, 0.24);
 }
 
 .scoreboard-orb--secondary {
@@ -39,7 +39,7 @@
   right: 10%;
   width: 22rem;
   height: 22rem;
-  background: rgba(88, 28, 135, 0.2);
+  background: rgba(32,63,41, 0.2);
 }
 
 .scoreboard-orb--tertiary {
@@ -47,7 +47,7 @@
   left: 34%;
   width: 16rem;
   height: 16rem;
-  background: rgba(59, 7, 100, 0.24);
+  background: rgba(23,43,30, 0.24);
 }
 
 .scoreboard-page {
@@ -114,22 +114,22 @@
   min-height: 44px;
   padding: 0.72rem 1.2rem;
   border-radius: 999px;
-  border: 1px solid rgba(192, 132, 252, 0.24);
-  background: linear-gradient(180deg, rgba(11, 16, 32, 0.82) 0%, rgba(8, 13, 28, 0.64) 100%);
-  color: #f5f3ff;
-  box-shadow: 0 16px 36px rgba(2, 6, 23, 0.3);
+  border: 1px solid rgba(192,132,252, 0.24);
+  background: linear-gradient(180deg, rgba(11,16,32, 0.82) 0%, rgba(8,13,28, 0.64) 100%);
+  color: #e7eedf;
+  box-shadow: 0 16px 36px rgba(2,6,23, 0.3);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
 }
 
 .cyber-button.cyber-scoreboard-refresh-btn:hover {
-  border-color: rgba(216, 180, 254, 0.52);
-  background: linear-gradient(180deg, rgba(29, 22, 58, 0.9) 0%, rgba(15, 12, 32, 0.78) 100%);
-  box-shadow: 0 20px 42px rgba(2, 6, 23, 0.38);
+  border-color: rgba(216,180,254, 0.52);
+  background: linear-gradient(180deg, rgba(29,22,58, 0.9) 0%, rgba(15,12,32, 0.78) 100%);
+  box-shadow: 0 20px 42px rgba(2,6,23, 0.38);
 }
 
 .cyber-scoreboard-refresh-btn .cyber-button__icon {
-  color: #d8b4fe;
+  color: #c7d88f;
 }
 
 /* Tabs */
@@ -138,14 +138,14 @@
   gap: 12px;
   margin-bottom: 1.2rem;
   background:
-    linear-gradient(160deg, rgba(17, 24, 39, 0.58) 0%, rgba(15, 23, 42, 0.34) 100%),
-    radial-gradient(circle at 12% 0%, rgba(196, 181, 253, 0.12), transparent 40%);
+    linear-gradient(160deg, rgba(17,24,39, 0.58) 0%, rgba(15,23,42, 0.34) 100%),
+    radial-gradient(circle at 12% 0%, rgba(194,214,169, 0.12), transparent 40%);
   padding: 8px;
   border-radius: 1.1rem;
-  border: 1px solid rgba(139, 92, 246, 0.22);
+  border: 1px solid rgba(95,148,79, 0.22);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    0 18px 42px rgba(2, 6, 23, 0.32);
+    inset 0 1px 0 rgba(255,255,255, 0.06),
+    0 18px 42px rgba(2,6,23, 0.32);
   backdrop-filter: blur(24px) saturate(130%);
   -webkit-backdrop-filter: blur(24px) saturate(130%);
 }
@@ -172,26 +172,26 @@
 
 .cyber-scoreboard-tab:hover {
   color: var(--text-primary);
-  background: rgba(139, 92, 246, 0.12);
+  background: rgba(95,148,79, 0.12);
 }
 
 .cyber-scoreboard-tab--active {
-  background: linear-gradient(135deg, rgba(216, 180, 254, 0.82) 0%, rgba(192, 132, 252, 0.84) 100%);
+  background: linear-gradient(135deg, rgba(216,180,254, 0.82) 0%, rgba(192,132,252, 0.84) 100%);
   color: #1f1144;
-  border-color: rgba(216, 180, 254, 0.6);
-  box-shadow: 0 12px 28px rgba(168, 85, 247, 0.36);
+  border-color: rgba(216,180,254, 0.6);
+  box-shadow: 0 12px 28px rgba(79,155,80, 0.36);
 }
 
 /* Graph Card */
 .cyber-scoreboard-graph-card {
   margin-bottom: 1.2rem;
-  border: 1px solid rgba(139, 92, 246, 0.2);
+  border: 1px solid rgba(95,148,79, 0.2);
   background:
-    linear-gradient(165deg, rgba(17, 24, 39, 0.48) 0%, rgba(15, 23, 42, 0.28) 100%),
-    radial-gradient(circle at 12% 0%, rgba(196, 181, 253, 0.14), transparent 42%);
+    linear-gradient(165deg, rgba(17,24,39, 0.48) 0%, rgba(15,23,42, 0.28) 100%),
+    radial-gradient(circle at 12% 0%, rgba(194,214,169, 0.14), transparent 42%);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    0 22px 50px rgba(2, 6, 23, 0.34);
+    inset 0 1px 0 rgba(255,255,255, 0.06),
+    0 22px 50px rgba(2,6,23, 0.34);
   backdrop-filter: blur(24px) saturate(130%);
   -webkit-backdrop-filter: blur(24px) saturate(130%);
 }
@@ -213,13 +213,13 @@
 /* Table */
 .cyber-scoreboard-table-card {
   overflow: hidden;
-  border: 1px solid rgba(139, 92, 246, 0.2);
+  border: 1px solid rgba(95,148,79, 0.2);
   background:
-    linear-gradient(165deg, rgba(17, 24, 39, 0.46) 0%, rgba(15, 23, 42, 0.26) 100%),
-    radial-gradient(circle at 12% 0%, rgba(196, 181, 253, 0.13), transparent 42%);
+    linear-gradient(165deg, rgba(17,24,39, 0.46) 0%, rgba(15,23,42, 0.26) 100%),
+    radial-gradient(circle at 12% 0%, rgba(194,214,169, 0.13), transparent 42%);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
-    0 22px 50px rgba(2, 6, 23, 0.34);
+    inset 0 1px 0 rgba(255,255,255, 0.05),
+    0 22px 50px rgba(2,6,23, 0.34);
   backdrop-filter: blur(24px) saturate(130%);
   -webkit-backdrop-filter: blur(24px) saturate(130%);
 }
@@ -261,8 +261,8 @@
   display: grid;
   grid-template-columns: 100px 1fr 150px;
   padding: 20px 24px;
-  background: rgba(15, 23, 42, 0.44);
-  border-bottom: 1px solid rgba(139, 92, 246, 0.24);
+  background: rgba(15,23,42, 0.44);
+  border-bottom: 1px solid rgba(95,148,79, 0.24);
   font-family: var(--font-mono);
   font-size: 0.813rem;
   font-weight: 700;
@@ -279,36 +279,36 @@
   display: grid;
   grid-template-columns: 100px 1fr 150px;
   padding: 20px 24px;
-  border-bottom: 1px solid rgba(139, 92, 246, 0.14);
+  border-bottom: 1px solid rgba(95,148,79, 0.14);
   transition: all var(--transition-normal);
-  background: rgba(10, 14, 26, 0.24);
+  background: rgba(10,14,26, 0.24);
 }
 
 .cyber-scoreboard-table-row:hover {
-  background: rgba(139, 92, 246, 0.09);
+  background: rgba(95,148,79, 0.09);
   transform: translateX(4px);
 }
 
 .cyber-scoreboard-table-row--current {
-  background: rgba(168, 85, 247, 0.1);
+  background: rgba(79,155,80, 0.1);
   border-left: 4px solid var(--primary);
   padding-left: 20px;
 }
 
 .cyber-scoreboard-table-row--current:hover {
-  background: rgba(168, 85, 247, 0.15);
+  background: rgba(79,155,80, 0.15);
 }
 
 .cyber-scoreboard-table-row--top1 {
-  background: rgba(255, 215, 0, 0.05);
+  background: rgba(255,215,0, 0.05);
 }
 
 .cyber-scoreboard-table-row--top2 {
-  background: rgba(192, 192, 192, 0.05);
+  background: rgba(192,192,192, 0.05);
 }
 
 .cyber-scoreboard-table-row--top3 {
-  background: rgba(205, 127, 50, 0.05);
+  background: rgba(205,127,50, 0.05);
 }
 
 .cyber-scoreboard-table-cell {

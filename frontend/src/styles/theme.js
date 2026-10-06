@@ -5,25 +5,25 @@ export const theme = {
   colors: {
     // Background layers
     bg: {
-      primary: '#05010B',
-      secondary: '#0A0514',
-      tertiary: '#140824',
-      elevated: '#1B0D30',
-      hover: '#2E1065',
+      primary: '#070C08',
+      secondary: '#0C140D',
+      tertiary: '#111F14',
+      elevated: '#18291A',
+      hover: '#213A24',
     },
     
     // Primary accent (cyan/blue)
     primary: {
-      50: '#e0f7ff',
-      100: '#b3e9ff',
-      200: '#80dbff',
-      300: '#4dcdff',
-      400: '#26c0ff',
-      500: '#A855F7',
-      600: '#9333EA',
-      700: '#008fcc',
-      800: '#007bb3',
-      900: '#005a8c',
+      50: '#edf5df',
+      100: '#dcebc6',
+      200: '#c9e2a9',
+      300: '#b2d48b',
+      400: '#91be65',
+      500: '#4F9B50',
+      600: '#367C3D',
+      700: '#2D6935',
+      800: '#24562D',
+      900: '#1B4324',
     },
     
     // Success (green)
@@ -47,11 +47,11 @@ export const theme = {
       200: '#ffd380',
       300: '#ffc24d',
       400: '#ffb526',
-      500: '#ffa800',
-      600: '#e69900',
-      700: '#cc8800',
-      800: '#b37700',
-      900: '#8c5c00',
+      500: '#D7B84B',
+      600: '#C2A33B',
+      700: '#A88B31',
+      800: '#8E7428',
+      900: '#705B1F',
     },
     
     // Danger (red)
@@ -68,34 +68,34 @@ export const theme = {
       900: '#8c0000',
     },
     
-    // Info (purple)
+    // Info (clover leaf)
     info: {
-      50: '#f3e6ff',
-      100: '#dcb3ff',
-      200: '#c580ff',
-      300: '#ae4dff',
-      400: '#9d26ff',
-      500: '#8c00ff',
-      600: '#7d00e6',
-      700: '#6e00cc',
-      800: '#5f00b3',
-      900: '#49008c',
+      50: '#edf2dc',
+      100: '#dbe9b9',
+      200: '#c2db8e',
+      300: '#a9c96b',
+      400: '#8db650',
+      500: '#72993d',
+      600: '#5f7e33',
+      700: '#4e692b',
+      800: '#3d5424',
+      900: '#2e411d',
     },
     
     // Text
     text: {
-      primary: '#e8eaed',
-      secondary: '#9ca3af',
-      tertiary: '#6b7280',
-      disabled: '#4b5563',
-      inverse: '#05010B',
+      primary: '#f2f5e8',
+      secondary: '#cbd8c1',
+      tertiary: '#9caf91',
+      disabled: '#64755f',
+      inverse: '#070C08',
     },
     
     // Borders
     border: {
-      primary: '#2E1065',
-      secondary: '#140824',
-      focus: '#A855F7',
+      primary: '#314D31',
+      secondary: '#111F14',
+      focus: '#79B856',
       danger: '#ff0000',
       success: '#00cb70',
     },
@@ -113,15 +113,15 @@ export const theme = {
       easy: '#00cb70',
       medium: '#ffa800',
       hard: '#ff4d4d',
-      insane: '#8c00ff',
+      insane: '#72993d',
     },
     
     // Special effects
     glow: {
-      primary: 'rgba(168, 85, 247, 0.4)',
-      success: 'rgba(0, 203, 112, 0.4)',
-      danger: 'rgba(255, 0, 0, 0.4)',
-      warning: 'rgba(255, 168, 0, 0.4)',
+      primary: 'rgba(79,155,80, 0.4)',
+      success: 'rgba(0,203,112, 0.4)',
+      danger: 'rgba(255,0,0, 0.4)',
+      warning: 'rgba(255,168,0, 0.4)',
     },
   },
   
@@ -138,13 +138,13 @@ export const theme = {
   },
   
   shadows: {
-    sm: '0 1px 2px 0 rgba(0, 0, 0, 0.3)',
-    md: '0 4px 6px -1px rgba(0, 0, 0, 0.4)',
-    lg: '0 10px 15px -3px rgba(0, 0, 0, 0.5)',
-    xl: '0 20px 25px -5px rgba(0, 0, 0, 0.6)',
-    glow: '0 0 20px rgba(168, 85, 247, 0.3)',
-    glowSuccess: '0 0 20px rgba(0, 203, 112, 0.3)',
-    glowDanger: '0 0 20px rgba(255, 0, 0, 0.3)',
+    sm: '0 1px 2px 0 rgba(0,0,0, 0.3)',
+    md: '0 4px 6px -1px rgba(0,0,0, 0.4)',
+    lg: '0 10px 15px -3px rgba(0,0,0, 0.5)',
+    xl: '0 20px 25px -5px rgba(0,0,0, 0.6)',
+    glow: '0 0 20px rgba(79,155,80, 0.3)',
+    glowSuccess: '0 0 20px rgba(0,203,112, 0.3)',
+    glowDanger: '0 0 20px rgba(255,0,0, 0.3)',
   },
   
   borderRadius: {
