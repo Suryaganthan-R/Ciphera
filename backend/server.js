@@ -237,7 +237,7 @@ app.use('/api/v1/scoreboard', scoreboardRoutes);
 app.use('/api/awards', require('./routes/awards'));
 app.use('/api/admin/reset', adminResetRoutes);
 
-app.get('/flag-admin', protect, authorize('admin'), async (req, res) => {
+app.get(['/flag-admin', '/api/flag-admin'], protect, authorize('admin'), async (req, res) => {
   try {
     const challenges = await Challenge.find()
       .select('title +flag')

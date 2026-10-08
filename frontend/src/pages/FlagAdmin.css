@@ -1,0 +1,91 @@
+.flag-admin {
+  width: min(100%, 1100px);
+  margin: 0 auto;
+  padding: clamp(1rem, 3vw, 2rem);
+  color: var(--text-primary);
+}
+
+.flag-admin__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(116, 190, 112, 0.28);
+}
+
+.flag-admin__eyebrow {
+  margin: 0 0 0.35rem;
+  color: #83c780;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.flag-admin h1 {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0;
+  font-size: clamp(1.25rem, 4vw, 1.75rem);
+}
+
+.flag-admin__count {
+  margin: 0.4rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.flag-admin__copy {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 40px;
+  padding: 0 0.85rem;
+  border: 1px solid rgba(116, 190, 112, 0.4);
+  border-radius: 6px;
+  background: rgba(30, 66, 39, 0.4);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.flag-admin__copy:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.flag-admin__list {
+  overflow: auto;
+  margin: 1rem 0 0;
+  padding: 1rem;
+  border-left: 2px solid #64ad61;
+  background: rgba(5, 14, 8, 0.72);
+  color: #d9f1d4;
+  font: 0.9rem/1.8 ui-monospace, SFMono-Regular, Consolas, monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.flag-admin__error,
+.flag-admin__empty {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 1rem 0;
+  color: var(--text-secondary);
+}
+
+.flag-admin__error {
+  color: #ff9e91;
+}
+
+@media (max-width: 520px) {
+  .flag-admin__header {
+    align-items: flex-start;
+  }
+
+  .flag-admin__copy {
+    padding: 0 0.65rem;
+  }
+}

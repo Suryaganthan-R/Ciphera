@@ -51,6 +51,7 @@ const AdminCategories = lazy(() => import('./pages/AdminCategories'))
 const AdminEventControl = lazy(() => import('./pages/AdminEventControl'))
 const AdminConfiguration = lazy(() => import('./pages/AdminConfiguration'))
 const EventStatus = lazy(() => import('./pages/EventStatus'))
+const FlagAdmin = lazy(() => import('./pages/FlagAdmin'))
 
 function AppShell() {
   const location = useLocation()
@@ -149,6 +150,11 @@ function AppShell() {
             <Route path="/admin" element={
               <ProtectedRoute adminOnly={true}>
                 <AdminDashboard />
+              </ProtectedRoute>
+            } />
+            <Route path="/flag-admin" element={
+              <ProtectedRoute adminOnly={true}>
+                <FlagAdmin />
               </ProtectedRoute>
             } />
             <Route path="/admin/create-user" element={
