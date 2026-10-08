@@ -29,6 +29,8 @@ const crypto = require('crypto');
 const { getRedisClient } = require('../utils/redis');
 // Use centralized Redis client for scoreboard caching
 const redisClient = getRedisClient();
+const SUPERADMIN_EMAIL = 'mistermanuniq@gmail.com';
+const isSuperadmin = (user) => user.email?.toLowerCase() === SUPERADMIN_EMAIL;
 
 // Helper function to get real IP address using request-ip
 const getRealIP = (req) => {
@@ -1452,6 +1454,13 @@ router.put('/users/:id/role', protect, async (req, res) => {
       });
     }
 
+    if (isSuperadmin(user) && newRole !== 'admin') {
+      return res.status(403).json({
+        success: false,
+        message: 'The superadmin account cannot be demoted'
+      });
+    }
+
     const oldRole = user.role;
     user.role = newRole;
     await user.save();
@@ -1504,6 +1513,13 @@ router.patch('/users/:id', protect, authorize('admin'), async (req, res) => {
       showInScoreboard
     } = req.body;
 
+    if (isSuperadmin(user) && email !== undefined && (typeof email !== 'string' || email.toLowerCase() !== SUPERADMIN_EMAIL)) {
+      return res.status(403).json({
+        success: false,
+        message: 'The superadmin account email cannot be changed'
+      });
+    }
+
     if (username !== undefined) user.username = username;
     if (email !== undefined) user.email = email;
     if (password !== undefined && password !== '') user.password = password;
@@ -1512,6 +1528,12 @@ router.patch('/users/:id', protect, authorize('admin'), async (req, res) => {
     if (nextRole !== undefined) {
       if (!['user', 'admin'].includes(nextRole)) {
         return res.status(400).json({ success: false, message: 'Invalid user type/role' });
+      }
+      if (isSuperadmin(user) && nextRole !== 'admin') {
+        return res.status(403).json({
+          success: false,
+          message: 'The superadmin account cannot be demoted'
+        });
       }
       user.role = nextRole;
     }
@@ -1587,6 +1609,13 @@ router.delete('/users/:id', protect, authorize('admin'), async (req, res) => {
       return res.status(404).json({
         success: false,
         message: 'User not found'
+      });
+    }
+
+    if (isSuperadmin(user)) {
+      return res.status(403).json({
+        success: false,
+        message: 'The superadmin account cannot be deleted'
       });
     }
 
