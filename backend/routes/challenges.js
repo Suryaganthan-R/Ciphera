@@ -466,6 +466,22 @@ router.post('/:id/submit', protect, sanitizeInput, checkEventNotEnded, async (re
     }
 
     if (alreadySolved) {
+      const existingCorrectSubmission = await Submission.findOne({
+        user: req.user._id,
+        challenge: challenge._id,
+        isCorrect: true
+      }).lean();
+
+      if (existingCorrectSubmission) {
+        return res.json({
+          success: true,
+          message: 'correct',
+          alreadySolved: true,
+          points: challenge.getCurrentValue(),
+          timestamp: new Date().toISOString()
+        });
+      }
+
       return res.status(400).json({
         success: false,
         message: 'This challenge has already been solved by you or your team'
@@ -492,29 +508,16 @@ router.post('/:id/submit', protect, sanitizeInput, checkEventNotEnded, async (re
     const isCorrect = crypto.timingSafeEqual(paddedSubmitted, paddedExpected) &&
       submittedFlag.length === expectedFlag.length;
 
-    // Create submission record (both success and failure) - unique index prevents duplicates
-    // CTFd-style: NO points field, calculated dynamically via JOIN
-    try {
+    if (!isCorrect) {
       await Submission.create({
         user: req.user._id,
         challenge: challenge._id,
-        submittedFlag: submittedFlag,
-        isCorrect: isCorrect,
+        submittedFlag,
+        isCorrect: false,
         ipAddress: clientIp,
-        userAgent: userAgent
+        userAgent
       });
-    } catch (err) {
-      // If duplicate key error (11000), user already submitted this exact flag
-      if (err.code === 11000) {
-        return res.status(400).json({
-          success: false,
-          message: 'You have already solved this challenge'
-        });
-      }
-      throw err; // Re-throw other errors
-    }
 
-    if (!isCorrect) {
       // Rate limiting is handled by middleware
       // Optionally publish failed attempts for admin monitoring
       try {
@@ -578,6 +581,15 @@ router.post('/:id/submit', protect, sanitizeInput, checkEventNotEnded, async (re
           }
           throw new Error('CTF is paused by admin.');
         }
+
+        await new Submission({
+          user: req.user._id,
+          challenge: challenge._id,
+          submittedFlag,
+          isCorrect: true,
+          ipAddress: clientIp,
+          userAgent
+        }).save({ session });
         
         // CTFd-style: Update solvedBy arrays + user.points for display
         // Scoreboard calculations use dynamic JOIN queries for accurate ranking

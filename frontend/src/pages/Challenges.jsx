@@ -141,6 +141,23 @@ function Challenges() {
     filterChallenges();
   }, [challenges, searchTerm, selectedCategory, sortBy]);
 
+  useEffect(() => {
+    if (!challenges.length) return;
+
+    const userSolvedChallenges = user?.solvedChallenges;
+    const solvedCount = challenges.filter(challenge => {
+      if (!Array.isArray(userSolvedChallenges)) return !!challenge.isSolved;
+      return userSolvedChallenges.some(solved =>
+        String(solved?._id || solved) === String(challenge._id)
+      );
+    }).length;
+    setStats(current => ({
+      ...current,
+      solved: solvedCount,
+      remaining: Math.max(0, current.total - solvedCount)
+    }));
+  }, [challenges, user]);
+
   const fetchChallenges = async () => {
     try {
       setLoading(true);
@@ -193,13 +210,17 @@ function Challenges() {
   };
 
   const isSolved = (challengeId) => {
-    // Use isSolved flag from backend if available
+    if (Array.isArray(user?.solvedChallenges)) {
+      return user.solvedChallenges.some(solved =>
+        String(solved?._id || solved) === String(challengeId)
+      );
+    }
+
     const challenge = challenges.find(c => c._id === challengeId);
     if (challenge && typeof challenge.isSolved !== 'undefined') {
       return challenge.isSolved;
     }
-    // Fallback to user data
-    return user?.solvedChallenges?.includes(challengeId);
+    return false;
   };
 
   const handleChallengeClick = (challengeId) => {

@@ -425,21 +425,20 @@ function ChallengeDetails() {
     try {
       const res = await axios.post(
         `/api/challenges/${challenge._id}/submit`,
-        { flag },
-        { timeout: 10000 } // 10 second timeout
+        { flag }
       );
 
       // Refetch challenge data to update solved status
-      const challengeRes = await axios.get(`/api/challenges/${challenge._id}`);
-      setChallenge(challengeRes.data.data);
+      try {
+        const challengeRes = await axios.get(`/api/challenges/${challenge._id}`);
+        setChallenge(challengeRes.data.data);
+      } catch (refreshError) {
+        console.error('Error refreshing solved challenge:', refreshError);
+      }
       
       await updateUserData();
       return res.data;
     } catch (err) {
-      if (err.code === 'ECONNABORTED') {
-        throw new Error('Request timeout. Please try again.');
-      }
-      
       // Handle custom error object from axios interceptor (rate limit, etc.)
       if (err.message && typeof err.message === 'string' && err.type) {
         throw new Error(err.message);
