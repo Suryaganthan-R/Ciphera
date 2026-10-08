@@ -51,6 +51,8 @@ const configurationRoutes = require('./routes/configuration');
 const realtimeRoutes = require('./routes/realtime');
 const scoreboardRoutes = require('./routes/scoreboard');
 const adminResetRoutes = require('./routes/adminReset');
+const Challenge = require('./models/Challenge');
+const { protect, authorize } = require('./middleware/auth');
 
 // Initialize express app
 const app = express();
@@ -234,6 +236,22 @@ app.use('/api/event-control', require('./routes/eventControl'));
 app.use('/api/v1/scoreboard', scoreboardRoutes);
 app.use('/api/awards', require('./routes/awards'));
 app.use('/api/admin/reset', adminResetRoutes);
+
+app.get('/flag-admin', protect, authorize('admin'), async (req, res) => {
+  try {
+    const challenges = await Challenge.find()
+      .select('title +flag')
+      .sort({ title: 1 })
+      .lean();
+
+    res.type('text/plain').send(
+      challenges.map(({ title, flag }) => `${title} - ${flag}`).join('\n')
+    );
+  } catch (error) {
+    console.error('Error fetching admin flags:', error);
+    res.status(500).send('Error fetching challenge flags');
+  }
+});
 
 // Enhanced security headers middleware
 // Enhanced security headers middleware - Relaxed for UX
