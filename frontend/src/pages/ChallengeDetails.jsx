@@ -126,7 +126,6 @@ const FlagSubmissionModal = ({ challenge, onClose, onSubmit }) => {
       setSuccess('Correct flag!');
       setTimeout(() => {
         onClose();
-        window.location.reload(); // Force refresh to update UI
       }, 1500);
     } catch (err) {
       setError(err.message || 'Incorrect flag');
