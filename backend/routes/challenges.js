@@ -3,6 +3,7 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 const Challenge = require('../models/Challenge');
+const Category = require('../models/Category');
 const User = require('../models/User');
 const Submission = require('../models/Submission');
 const { protect, authorize } = require('../middleware/auth');
@@ -325,6 +326,13 @@ router.post('/', protect, authorize('admin'), async (req, res) => {
     console.log('Creating challenge with data:', req.body);
 
     const payload = { ...req.body };
+    payload.category = String(payload.category || '').trim().toLowerCase();
+    if (!await Category.exists({ id: payload.category })) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please select a valid category'
+      });
+    }
 
     // CTFd-style validation for dynamic challenge parameters
     if (payload.function === 'linear' || payload.function === 'logarithmic') {
@@ -859,6 +867,15 @@ router.put('/:id', protect, authorize('admin'), async (req, res) => {
     }
 
     const updateData = { ...req.body };
+    if (Object.prototype.hasOwnProperty.call(updateData, 'category')) {
+      updateData.category = String(updateData.category || '').trim().toLowerCase();
+      if (!await Category.exists({ id: updateData.category })) {
+        return res.status(400).json({
+          success: false,
+          message: 'Please select a valid category'
+        });
+      }
+    }
 
     const incomingFunction = updateData.function !== undefined ? updateData.function : challenge.function;
     const isDynamicFunction = incomingFunction === 'linear' || incomingFunction === 'logarithmic';

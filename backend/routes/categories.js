@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Category = require('../models/Category');
+const Challenge = require('../models/Challenge');
 const { protect, authorize } = require('../middleware/auth');
 
 // @route   GET /api/categories
@@ -108,6 +109,14 @@ router.put('/:id', protect, authorize('admin'), async (req, res) => {
 // @access  Private/Admin
 router.delete('/:id', protect, authorize('admin'), async (req, res) => {
   try {
+    const challengeCount = await Challenge.countDocuments({ category: req.params.id });
+    if (challengeCount > 0) {
+      return res.status(409).json({
+        success: false,
+        message: `This category is assigned to ${challengeCount} challenge${challengeCount === 1 ? '' : 's'}. Reassign them before deleting it.`
+      });
+    }
+
     const category = await Category.findOneAndDelete({ id: req.params.id });
 
     if (!category) {

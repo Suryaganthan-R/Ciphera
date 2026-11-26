@@ -14,7 +14,8 @@ const ChallengeSchema = new mongoose.Schema({
   category: {
     type: String,
     required: [true, 'Category is required'],
-    enum: ['web', 'crypto', 'forensics', 'reverse', 'osint', 'misc']
+    trim: true,
+    lowercase: true
   },
   difficulty: {
     type: String,

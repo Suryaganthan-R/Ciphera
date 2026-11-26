@@ -1,5 +1,5 @@
 import { useState, useEffect, useContext } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search,
@@ -27,7 +27,7 @@ const getChallengePreview = (description) => {
 
 const getSolveCount = (challenge) => challenge.solvedBy?.length || challenge.solves?.length || 0;
 
-function ChallengeTile({ challenge, solved, onOpen }) {
+function ChallengeTile({ challenge, categoryName, solved, onOpen }) {
   const solveCount = getSolveCount(challenge);
 
   const handleKeyDown = (event) => {
@@ -59,7 +59,7 @@ function ChallengeTile({ challenge, solved, onOpen }) {
         <CardHeader className="challenge-card-header">
           <div className="challenge-header">
             <div className="challenge-title-row">
-              <span className="challenge-category">{challenge.category || 'General'}</span>
+              <span className="challenge-category">{categoryName || challenge.category || 'General'}</span>
               {solved && (
                 <span className="challenge-status">
                   <CheckCircle className="solved-icon" size={16} />
@@ -324,6 +324,11 @@ function Challenges() {
                   <Filter size={16} />
                   Category
                 </label>
+                {user?.role === 'admin' && (
+                  <Link className="category-manage-link" to="/admin/categories">
+                    Create or delete categories
+                  </Link>
+                )}
                 <div className="filter-buttons">
                   {categories.map((cat) => (
                     <button
@@ -384,6 +389,7 @@ function Challenges() {
                 <motion.div key={challenge._id} variants={itemVariants} layout>
                   <ChallengeTile
                     challenge={challenge}
+                    categoryName={categories.find(category => category.id === challenge.category)?.name}
                     solved={isSolved(challenge._id)}
                     onOpen={() => handleChallengeClick(challenge._id)}
                   />

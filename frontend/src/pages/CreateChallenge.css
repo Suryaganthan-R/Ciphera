@@ -85,6 +85,17 @@
   margin-top: 0.25rem;
 }
 
+.category-manage-link {
+  align-self: flex-start;
+  color: #a9ca67;
+  font-size: 0.85rem;
+  text-decoration: none;
+}
+
+.category-manage-link:hover {
+  text-decoration: underline;
+}
+
 .submit-button {
   margin-top: 1rem;
   padding: 0.75rem;

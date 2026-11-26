@@ -1,5 +1,5 @@
 import { useState, useContext, useEffect } from 'react';
-import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useParams, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import AuthContext from '../context/AuthContext';
 import './CreateChallenge.css'; // Reusing the same styles
@@ -32,6 +32,7 @@ function EditChallenge() {
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
   const [isDeletingFile, setIsDeletingFile] = useState('');
+  const [categories, setCategories] = useState([]);
 
   // Redirect if not authenticated or not admin
   useEffect(() => {
@@ -41,6 +42,19 @@ function EditChallenge() {
       navigate('/challenges');
     }
   }, [isAuthenticated, user, navigate]);
+
+  useEffect(() => {
+    let active = true;
+    axios.get('/api/categories')
+      .then(response => {
+        if (active) setCategories(response.data.data || []);
+      })
+      .catch(error => console.error('Error fetching challenge categories:', error));
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Load challenge data
   useEffect(() => {
@@ -271,13 +285,17 @@ function EditChallenge() {
                 onChange={onChange}
                 required
               >
-                <option value="web">Web Exploitation</option>
-                <option value="crypto">Cryptography</option>
-                <option value="forensics">Forensics</option>
-                <option value="reverse">Reverse Engineering</option>
-                <option value="osint">OSINT</option>
-                <option value="misc">Miscellaneous</option>
+                {!categories.some(item => item.id === category) && category && (
+                  <option value={category}>{category}</option>
+                )}
+                <option value="" disabled>Select a category</option>
+                {categories.map(item => (
+                  <option key={item.id} value={item.id}>{item.name}</option>
+                ))}
               </select>
+              <Link className="category-manage-link" to="/admin/categories">
+                Create or delete categories
+              </Link>
             </div>
 
             <div className="form-group">

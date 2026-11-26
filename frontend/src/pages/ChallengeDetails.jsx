@@ -370,6 +370,7 @@ function ChallengeDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [challenge, setChallenge] = useState(null);
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showModal, setShowModal] = useState(false);
@@ -380,6 +381,19 @@ function ChallengeDetails() {
   const [pendingHintUnlock, setPendingHintUnlock] = useState(null);
   const { user, isAuthenticated, updateUserData } = useContext(AuthContext);
   const { eventState, isEnded, isPaused, isNotStarted } = useEventState();
+
+  useEffect(() => {
+    let active = true;
+    axios.get('/api/categories')
+      .then(response => {
+        if (active) setCategories(response.data.data || []);
+      })
+      .catch(error => console.error('Error fetching challenge categories:', error));
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     const fetchChallenge = async () => {
@@ -655,7 +669,7 @@ function ChallengeDetails() {
               className="htb-meta-badge htb-category"
               whileHover={{ scale: 1.05 }}
             >
-              <span>{challenge.category}</span>
+              <span>{categories.find(category => category.id === challenge.category)?.name || challenge.category}</span>
             </motion.div>
             <motion.div
               className="htb-meta-badge htb-solves"

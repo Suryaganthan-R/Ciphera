@@ -1,5 +1,5 @@
 import { useState, useContext, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import AuthContext from '../context/AuthContext';
 import './CreateChallenge.css';
@@ -11,7 +11,7 @@ function CreateChallenge() {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    category: 'web',
+    category: '',
     difficulty: 'Easy',
     points: 100,
     flag: '',
@@ -28,6 +28,7 @@ function CreateChallenge() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [selectedFiles, setSelectedFiles] = useState([]);
+  const [categories, setCategories] = useState([]);
 
   const { title, description, category, difficulty, points, flag } = formData;
 
@@ -39,6 +40,27 @@ function CreateChallenge() {
       navigate('/challenges');
     }
   }, [isAuthenticated, user, navigate]);
+
+  useEffect(() => {
+    let active = true;
+    axios.get('/api/categories')
+      .then((response) => {
+        if (!active) return;
+        const availableCategories = response.data.data || [];
+        setCategories(availableCategories);
+        setFormData(current => ({
+          ...current,
+          category: availableCategories.some(item => item.id === current.category)
+            ? current.category
+            : availableCategories[0]?.id || ''
+        }));
+      })
+      .catch(error => console.error('Error fetching challenge categories:', error));
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const onChange = (e) => {
     const { name, value } = e.target;
@@ -206,13 +228,14 @@ function CreateChallenge() {
                 onChange={onChange}
                 required
               >
-                <option value="web">Web Exploitation</option>
-                <option value="crypto">Cryptography</option>
-                <option value="forensics">Forensics</option>
-                <option value="reverse">Reverse Engineering</option>
-                <option value="osint">OSINT</option>
-                <option value="misc">Miscellaneous</option>
+                <option value="" disabled>Select a category</option>
+                {categories.map(item => (
+                  <option key={item.id} value={item.id}>{item.name}</option>
+                ))}
               </select>
+              <Link className="category-manage-link" to="/admin/categories">
+                Create or delete categories
+              </Link>
             </div>
           </div>
 
