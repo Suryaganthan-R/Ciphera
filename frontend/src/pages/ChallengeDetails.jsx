@@ -502,12 +502,6 @@ function ChallengeDetails() {
       hintCost: hint.cost
     });
 
-    // Check if enough points available
-    if (availablePoints < hint.cost) {
-      alert(`Insufficient points! You need ${hint.cost} points but have ${availablePoints} ${pointsType} points.`);
-      return;
-    }
-
     // Show custom confirmation modal with correct points
     setPendingHintUnlock({ 
       hint, 
