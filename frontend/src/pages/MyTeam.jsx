@@ -14,7 +14,7 @@ function MyTeam() {
   const [teams, setTeams] = useState([]);
   const [teamSearch, setTeamSearch] = useState('');
   const [createForm, setCreateForm] = useState({ name: '', password: '' });
-  const [joinForm, setJoinForm] = useState({ teamId: '', password: '', inviteCode: '' });
+  const [joinForm, setJoinForm] = useState({ password: '', inviteCode: '' });
   const { isAuthenticated, loading } = useContext(AuthContext);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -88,11 +88,20 @@ function MyTeam() {
     event.preventDefault();
     setError('');
     setSuccess('');
+    const inviteCodeValue = joinForm.inviteCode.trim();
+    const searchedName = teamSearch.trim();
+    // Prefer an exact match, then fall back to ignoring letter case.
+    const matchedTeam = teams.find(team => team.name === searchedName)
+      || teams.find(team => team.name.toLowerCase() === searchedName.toLowerCase());
+    if (!inviteCodeValue && !matchedTeam) {
+      setError('No team found with that name.');
+      return;
+    }
     setSubmitting(true);
     try {
-      const payload = joinForm.inviteCode.trim()
-        ? { inviteCode: joinForm.inviteCode.trim() }
-        : { teamId: joinForm.teamId, password: joinForm.password };
+      const payload = inviteCodeValue
+        ? { inviteCode: inviteCodeValue }
+        : { teamId: matchedTeam._id, password: joinForm.password };
       const response = await axios.post('/api/teams/join', payload);
       setSuccess('Joined team successfully.');
       navigate(`/team/${response.data.data._id}`);
@@ -102,10 +111,6 @@ function MyTeam() {
       setSubmitting(false);
     }
   };
-
-  const filteredTeams = teams.filter(team =>
-    team.name.toLowerCase().includes(teamSearch.trim().toLowerCase())
-  );
 
   if (loading || pageLoading) {
     return (
@@ -161,42 +166,12 @@ function MyTeam() {
               id="join-team-search"
               type="search"
               value={teamSearch}
-              onChange={event => {
-                setTeamSearch(event.target.value);
-                setJoinForm(current => ({ ...current, teamId: '' }));
-              }}
+              onChange={event => setTeamSearch(event.target.value)}
               placeholder="Enter a team name"
               autoComplete="off"
               disabled={Boolean(joinForm.inviteCode)}
-              required={!joinForm.inviteCode && !joinForm.teamId}
+              required={!joinForm.inviteCode}
             />
-            <div className="my-team-search-results" role="listbox" aria-label="Available teams">
-              {joinForm.teamId && !teamSearch ? (
-                <div className="my-team-selected-team">
-                  Selected: {teams.find(team => team._id === joinForm.teamId)?.name}
-                  <button type="button" onClick={() => setJoinForm(current => ({ ...current, teamId: '' }))}>
-                    Change
-                  </button>
-                </div>
-              ) : filteredTeams.length ? filteredTeams.map(team => (
-                <button
-                  key={team._id}
-                  type="button"
-                  role="option"
-                  aria-selected={joinForm.teamId === team._id}
-                  disabled={Boolean(joinForm.inviteCode) || team.memberCount >= team.maxMembers}
-                  onClick={() => {
-                    setJoinForm(current => ({ ...current, teamId: team._id }));
-                    setTeamSearch('');
-                  }}
-                >
-                  <span>{team.name}</span>
-                  <small>{team.memberCount}/{team.maxMembers} members</small>
-                </button>
-              )) : (
-                <p>{teams.length ? 'No matching teams found.' : 'No teams are available to join.'}</p>
-              )}
-            </div>
             <label htmlFor="join-team-password">Team password</label>
             <input
               id="join-team-password"
@@ -212,7 +187,7 @@ function MyTeam() {
             <input
               id="team-invite-code"
               value={joinForm.inviteCode}
-              onChange={event => setJoinForm(current => ({ ...current, inviteCode: event.target.value, teamId: '' }))}
+              onChange={event => setJoinForm(current => ({ ...current, inviteCode: event.target.value }))}
               placeholder="Paste an invite code or open the invite link"
             />
             <button type="submit" disabled={submitting}>{submitting ? 'Working...' : 'Join team'}</button>
