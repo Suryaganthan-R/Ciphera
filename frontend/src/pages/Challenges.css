@@ -225,6 +225,7 @@
 .search-input {
   background: rgba(10,14,26, 0.62) !important;
   border-color: rgba(95,148,79, 0.2) !important;
+  padding-left: 3rem !important;
 }
 
 .filter-buttons {

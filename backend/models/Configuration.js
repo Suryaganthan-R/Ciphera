@@ -11,7 +11,7 @@ const ConfigurationSchema = new mongoose.Schema({
     type: String,
     trim: true,
     maxlength: 100,
-    default: process.env.EVENT_NAME || 'CTFQuest'
+    default: process.env.EVENT_NAME || 'CloverCTF'
   },
   eventDescription: {
     type: String,
