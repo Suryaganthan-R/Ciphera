@@ -30,8 +30,14 @@ function MyTeam() {
       }
       try {
         const [myTeamResponse, teamsResponse] = await Promise.all([
-          axios.get('/api/teams/my/team').catch(err => err.response?.status === 404 ? null : Promise.reject(err)),
-          axios.get('/api/teams/available')
+          axios.get('/api/teams/my/team', {
+            params: { _fresh: Date.now() },
+            headers: { 'Cache-Control': 'no-cache' }
+          }).catch(err => err.response?.status === 404 ? null : Promise.reject(err)),
+          axios.get('/api/teams/available', {
+            params: { _fresh: Date.now() },
+            headers: { 'Cache-Control': 'no-cache' }
+          })
         ]);
         if (!active) return;
         setTeams(teamsResponse.data.data || []);

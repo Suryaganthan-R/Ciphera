@@ -355,6 +355,7 @@ router.post('/', protect, authorize('admin'), async (req, res) => {
 // @desc    Get current user's team
 // @access  Private
 router.get('/my/team', protect, async (req, res) => {
+  res.set('Cache-Control', 'no-store');
   try {
     const user = await User.findById(req.user._id).select('team');
 
@@ -452,6 +453,7 @@ router.get('/', protect, async (req, res) => {
 // @desc    Get single team
 // @access  Private
 router.get('/:id', protect, async (req, res) => {
+  res.set('Cache-Control', 'no-store');
   try {
     const isAdmin = req.user.role === 'admin';
     

@@ -22,12 +22,15 @@ function TeamDetails() {
   const [actionLoading, setActionLoading] = useState(false);
 
   const fetchTeamDetails = async () => {
-    const res = await axios.get(`/api/teams/${id}`);
+    const res = await axios.get(`/api/teams/${id}`, {
+      params: { _fresh: Date.now() },
+      headers: { 'Cache-Control': 'no-cache' }
+    });
     setTeam(res.data.data);
   };
 
   useEffect(() => {
-    const fetchTeamDetails = async () => {
+    const loadTeamPage = async () => {
       // Wait for auth to finish loading
       if (authLoading) {
         return;
@@ -49,7 +52,7 @@ function TeamDetails() {
       }
     };
 
-    fetchTeamDetails();
+    loadTeamPage();
   }, [id, isAuthenticated, authLoading, navigate]);
 
   const handleCreateInvite = async () => {
