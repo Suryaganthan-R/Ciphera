@@ -1,5 +1,10 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const router = express.Router();
+const Award = require('../models/Award');
+const { getTeamRawScore, getUserRawScore, hasSolved } = require('../utils/teamScore');
+const { invalidateTeamPoints } = require('../utils/teamPointsCache');
+const { clearScoreboardCache } = require('../utils/redis');
 const Unlock = require('../models/Unlock');
 const User = require('../models/User');
 const Team = require('../models/Team');
@@ -13,211 +18,132 @@ const { checkEventNotEnded } = require('../middleware/eventState');
  * GET /api/unlocks - Get user's unlocks (admin only)
  */
 
+const httpError = (status, message) => Object.assign(new Error(message), { status });
+const isObjectId = (id) => /^[0-9a-fA-F]{24}$/.test(String(id || ''));
+
+// @route   GET /api/unlocks/balance
+// @desc    Points available for hints, and whether a challenge is already solved
+// @access  Private
+router.get('/balance', protect, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('team solvedChallenges');
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+    const team = user.team ? await Team.findById(user.team).select('solvedChallenges') : null;
+    const score = team ? await getTeamRawScore(team._id) : await getUserRawScore(user._id);
+    const solved = isObjectId(req.query.challenge)
+      ? await hasSolved(req.query.challenge, user, team)
+      : false;
+
+    res.set('Cache-Control', 'no-store');
+    res.json({
+      success: true,
+      data: { scope: team ? 'team' : 'individual', available: Math.max(0, score), solved }
+    });
+  } catch (error) {
+    console.error('[Unlock] Balance error:', error);
+    res.status(500).json({ success: false, message: 'Error fetching available points' });
+  }
+});
+
 // @route   POST /api/unlocks
 // @desc    Unlock a hint by spending points (CTFd-style)
 // @access  Private
 router.post('/', protect, checkEventNotEnded, async (req, res) => {
-  const mongoose = require('mongoose');
-  const session = await mongoose.startSession();
-  
+  const { type, challenge: challengeId } = req.body;
+  const target = Number(req.body.target);
+  const reject = (status, field, message) =>
+    res.status(status).json({ success: false, message, errors: { [field]: message } });
+
+  if (type !== 'hints') {
+    return reject(400, 'type', 'Only hints are supported for unlocking');
+  }
+  if ([undefined, null, ''].includes(req.body.target) || !Number.isInteger(target) || target < 0) {
+    return reject(400, 'target', 'Invalid target (hint index)');
+  }
+  if (!isObjectId(challengeId)) {
+    return reject(400, 'challenge', 'A valid challenge ID is required');
+  }
+
+  let session;
   try {
-    const { target, type, challenge: challengeId } = req.body;
-    const userId = req.user._id || req.user.id;
-
-    console.log('[Unlock] Request:', { userId, challengeId, target, type });
-
-    // Validate required fields
-    if (type !== 'hints') {
-      await session.endSession();
-      return res.status(400).json({
-        success: false,
-        errors: { type: 'Only hints are supported for unlocking' }
-      });
-    }
-
-    if (target === undefined || target < 0) {
-      await session.endSession();
-      return res.status(400).json({
-        success: false,
-        errors: { target: 'Invalid target (hint index)' }
-      });
-    }
-
-    if (!challengeId) {
-      await session.endSession();
-      return res.status(400).json({
-        success: false,
-        errors: { challenge: 'Challenge ID is required' }
-      });
-    }
-
-    // Get challenge
     const challenge = await Challenge.findById(challengeId);
     if (!challenge) {
-      await session.endSession();
-      return res.status(404).json({
-        success: false,
-        errors: { challenge: 'Challenge not found' }
-      });
+      return reject(404, 'challenge', 'Challenge not found');
     }
-
-    // Check if hint exists
-    if (!challenge.hints || !challenge.hints[target]) {
-      await session.endSession();
-      return res.status(404).json({
-        success: false,
-        errors: { target: 'Hint not found' }
-      });
+    const hint = challenge.hints?.[target];
+    if (!hint) {
+      return reject(404, 'target', 'Hint not found');
     }
-
-    const hint = challenge.hints[target];
-
-    // Get user with team info
-    const user = await User.findById(userId).populate('team');
-    if (!user) {
-      await session.endSession();
-      return res.status(404).json({
-        success: false,
-        errors: { user: 'User not found' }
-      });
-    }
+    const cost = Math.max(0, Number(hint.cost) || 0);
 
     let unlock;
-    let teamData = null;
+    let teamId = null;
+    session = await mongoose.startSession();
 
     await session.withTransaction(async () => {
-      // Check for existing unlock (prevent double unlock) - inside transaction
-      const query = {
-        challenge: challengeId,
-        target: target,
-        type: 'hints'
-      };
+      // These writes make simultaneous unlocks and solves conflict, so MongoDB retries
+      // one of them against the updated balance and solve list.
+      const user = await User.findByIdAndUpdate(
+        req.user._id,
+        { $inc: { scoreRevision: 1 } },
+        { new: true, session }
+      );
+      if (!user) throw httpError(404, 'User not found');
+      const team = user.team
+        ? await Team.findByIdAndUpdate(user.team, { $inc: { scoreRevision: 1 } }, { new: true, session })
+        : null;
+      teamId = team?._id || null;
 
-      if (user.team) {
-        // In team mode, check if either user or team has unlocked
-        query.$or = [
-          { user: userId },
-          { team: user.team._id }
-        ];
-      } else {
-        query.user = userId;
+      if (await hasSolved(challenge._id, user, team, session)) {
+        throw httpError(400, 'This challenge is already solved, so its hints can no longer be unlocked.');
       }
 
-      const existingUnlock = await Unlock.findOne(query).session(session);
-      if (existingUnlock) {
-        throw new Error("You've already unlocked this target");
-      }
+      const existingUnlock = await Unlock.findOne({
+        challenge: challenge._id,
+        target,
+        type: 'hints',
+        ...(team ? { $or: [{ user: user._id }, { team: team._id }] } : { user: user._id })
+      }).session(session);
+      if (existingUnlock) throw httpError(400, "You've already unlocked this target");
 
-      // Calculate available points (team or individual)
-      let availablePoints = user.points;
-
-      if (user.team) {
-        const team = await Team.findById(user.team._id).populate('members', '_id').session(session);
-        if (team) {
-          teamData = team;
-          
-          // Calculate member points dynamically from submissions
-          const Submission = require('../models/Submission');
-          const memberIds = team.members.map(m => m._id);
-          
-          const memberPointsAgg = await Submission.aggregate([
-            { $match: { user: { $in: memberIds }, isCorrect: true } },
-            {
-              $lookup: {
-                from: 'challenges',
-                localField: 'challenge',
-                foreignField: '_id',
-                as: 'challengeData'
-              }
-            },
-            { $unwind: '$challengeData' },
-            {
-              $group: {
-                _id: '$user',
-                totalPoints: { $sum: '$challengeData.points' }
-              }
-            }
-          ]).session(session);
-          
-          // Sum all member points
-          const memberPoints = memberPointsAgg.reduce((sum, item) => sum + item.totalPoints, 0);
-          
-          // Get team awards (includes hint unlock deductions as negative awards)
-          const Award = require('../models/Award');
-          const awards = await Award.find({ team: team._id }).select('value').session(session);
-          const awardPoints = awards.reduce((sum, award) => sum + (award.value || 0), 0);
-          
-          availablePoints = Math.max(0, memberPoints + awardPoints);
-          
-          console.log('[Unlock] Team points calculation:', {
-            memberCount: memberIds.length,
-            memberPoints,
-            awardPoints,
-            totalAvailable: availablePoints
-          });
+      let score = 0;
+      if (cost > 0) {
+        score = team ? await getTeamRawScore(team._id, session) : await getUserRawScore(user._id, session);
+        if (score < cost) {
+          throw httpError(400, `Not enough points to unlock this hint. It costs ${cost} points and you have ${Math.max(0, score)}.`);
         }
       }
 
-      console.log('[Unlock] Points check:', { 
-        required: hint.cost, 
-        available: availablePoints, 
-        isTeam: !!teamData 
-      });
-
-      // Check if enough points
-      if (availablePoints < hint.cost) {
-        throw new Error('You do not have enough points to unlock this hint');
-      }
-
-      // Create unlock record within transaction
-      const unlockDoc = await Unlock.create([{
-        user: userId,
-        team: user.team ? user.team._id : null,
-        challenge: challengeId,
-        target: target,
+      [unlock] = await Unlock.create([{
+        user: user._id,
+        team: teamId,
+        challenge: challenge._id,
+        target,
         type: 'hints'
       }], { session });
-      
-      unlock = unlockDoc[0];
 
-      // Deduct cost from TEAM score (not individual user) - within transaction
-      if (hint.cost > 0 && teamData) {
-        const Award = require('../models/Award');
-        
+      if (cost > 0) {
         await Award.create([{
-          team: teamData._id,
-          user: null, // Team award, not user award
-          name: `Hint Unlock: ${challenge.title}`,
+          team: teamId,
+          user: team ? null : user._id,
+          name: `Hint Unlock: ${challenge.title}`.slice(0, 80),
           description: `Hint #${target + 1} unlocked by ${user.username}`,
-          value: -hint.cost, // NEGATIVE value to deduct points
+          value: -cost,
           category: 'hints',
           icon: 'hint'
         }], { session });
 
-        console.log('[Unlock] Team award created:', { 
-          team: teamData.name,
-          cost: hint.cost,
-          unlockedBy: user.username
-        });
+        if (!team) {
+          await User.updateOne({ _id: user._id }, { $set: { points: score - cost } }, { session });
+        }
       }
     });
 
-    await session.endSession();
-    
-    // Invalidate team points cache after successful transaction
-    if (teamData) {
-      const { invalidateTeamPoints } = require('../utils/teamPointsCache');
-      await invalidateTeamPoints(teamData._id);
-    }
+    if (teamId) await invalidateTeamPoints(teamId);
+    await clearScoreboardCache();
 
-    console.log('[Unlock] Success:', { 
-      hintIndex: target, 
-      cost: hint.cost,
-      teamMode: !!teamData,
-      unlockedBy: user.username
-    });
-
-    // Return CTFd-style response
     res.json({
       success: true,
       data: {
@@ -230,30 +156,20 @@ router.post('/', protect, checkEventNotEnded, async (req, res) => {
       }
     });
   } catch (error) {
-    await session.endSession();
-    console.error('[Unlock] Error:', error);
-    
-    // Handle duplicate key error (race condition)
     if (error.code === 11000) {
-      return res.status(400).json({
-        success: false,
-        errors: { target: "You've already unlocked this target" }
-      });
+      return reject(400, 'target', "You've already unlocked this target");
     }
-
-    // Handle custom error messages from transaction
-    if (error.message.includes('already unlocked') || error.message.includes('not have enough points')) {
-      return res.status(400).json({
-        success: false,
-        errors: { target: error.message }
-      });
+    if (error.status) {
+      return reject(error.status, 'target', error.message);
     }
-
+    console.error('[Unlock] Error:', error);
     res.status(500).json({
       success: false,
       message: 'Internal server error',
       error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
+  } finally {
+    if (session) await session.endSession();
   }
 });
 

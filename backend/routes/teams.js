@@ -7,6 +7,8 @@ const { protect, authorize } = require('../middleware/auth');
 const { invalidateTeamPoints } = require('../utils/teamPointsCache');
 const { clearScoreboardCache } = require('../utils/redis');
 const { aggregateTeamStandings } = require('../utils/teamStandings');
+const { getTeamRawScore } = require('../utils/teamScore');
+const { listUnlockedHints } = require('../utils/unlockedHints');
 
 const MAX_TEAM_MEMBERS = 4;
 const isTeamCaptain = (team, userId) => {
@@ -433,13 +435,21 @@ router.get('/', protect, async (req, res) => {
       .limit(limit)
       .skip(skip);
 
+    // The stored points field is not maintained, so the admin list shows the calculated score.
+    const data = isAdmin && view === 'admin'
+      ? await Promise.all(teams.map(async team => ({
+        ...team.toJSON(),
+        points: Math.max(0, await getTeamRawScore(team._id))
+      })))
+      : teams;
+
     res.json({
       success: true,
       count: teams.length,
       total,
       page,
       pages: Math.ceil(total / limit),
-      data: teams
+      data
     });
   } catch (error) {
     res.status(500).json({
@@ -488,8 +498,6 @@ router.get('/:id', protect, async (req, res) => {
 
     // Calculate points dynamically for each member from submissions (like scoreboard does)
     const Submission = require('../models/Submission');
-    const Unlock = require('../models/Unlock');
-    const mongoose = require('mongoose');
     const memberIds = team.members.map(m => m._id);
     
     const memberStatsAgg = await Submission.aggregate([
@@ -513,96 +521,43 @@ router.get('/:id', protect, async (req, res) => {
       }
     ]);
     
-    // Get unlocked hints with full details for each member
-    const unlocksWithDetails = await Unlock.aggregate([
-      { $match: { user: { $in: memberIds }, type: 'hints' } },
-      {
-        $lookup: {
-          from: 'challenges',
-          localField: 'challenge',
-          foreignField: '_id',
-          as: 'challengeData'
-        }
-      },
-      { $unwind: '$challengeData' },
-      {
-        $project: {
-          user: 1,
-          target: 1,
-          challengeName: '$challengeData.title',
-          challengeId: '$challenge',
-          hintCost: { $arrayElemAt: ['$challengeData.hints.cost', '$target'] },
-          createdAt: 1
-        }
-      },
-      { $sort: { createdAt: -1 } }
-    ]);
-    
-    console.log('[Team Details] Unlocks with details:', {
-      memberIds: memberIds.map(id => id.toString()),
-      unlocksFound: unlocksWithDetails.length,
-      unlocks: unlocksWithDetails.map(u => ({ 
-        userId: u.user.toString(), 
-        challenge: u.challengeName,
-        hintIndex: u.target,
-        cost: u.hintCost
-      }))
+    // Hints paid for by this team, including any unlocked by members who have since left
+    const teamHints = await listUnlockedHints({ team: team._id });
+    const hintsByUser = new Map();
+    teamHints.forEach(hint => {
+      const userId = hint.userId.toString();
+      hintsByUser.set(userId, [...(hintsByUser.get(userId) || []), hint]);
     });
-    
-    // Create a map of userId -> calculated stats
-    const statsMap = new Map();
-    memberStatsAgg.forEach(item => {
-      const userId = item._id.toString();
-      statsMap.set(userId, {
-        points: item.totalPoints,
-        solvedCount: item.solvedCount,
-        personalSolvedChallenges: item.solvedChallenges,
-        unlockedHints: []
-      });
-    });
-    
-    // Add unlocked hints details to stats map
-    unlocksWithDetails.forEach(unlock => {
-      const userId = unlock.user.toString();
-      const existingStats = statsMap.get(userId) || { 
-        points: 0, 
-        solvedCount: 0, 
-        personalSolvedChallenges: [],
-        unlockedHints: []
-      };
-      existingStats.unlockedHints.push({
-        challengeId: unlock.challengeId,
-        challengeName: unlock.challengeName,
-        hintIndex: unlock.target,
-        cost: unlock.hintCost,
-        unlockedAt: unlock.createdAt
-      });
-      statsMap.set(userId, existingStats);
-    });
-    
+
+    const statsMap = new Map(memberStatsAgg.map(item => [item._id.toString(), item]));
+
     // Build new members array with calculated stats
     const updatedMembers = team.members.map(member => {
       const memberId = member._id.toString();
       const stats = statsMap.get(memberId);
-      
+
       return {
         _id: member._id,
         username: member.username,
         email: member.email,
-        points: stats ? stats.points : 0,
+        points: stats ? stats.totalPoints : 0,
         personallySolvedCount: stats ? stats.solvedCount : 0,
-        personallySolvedChallenges: stats ? stats.personalSolvedChallenges : [],
-        unlockedHints: stats ? stats.unlockedHints : []
+        personallySolvedChallenges: stats ? stats.solvedChallenges : [],
+        unlockedHints: hintsByUser.get(memberId) || []
       };
     });
-    
-    console.log('[Team Details] Updated member stats:', updatedMembers.map(m => ({
-      username: m.username,
-      points: m.points,
-      solvedCount: m.personallySolvedCount,
-      unlockedHintsCount: m.unlockedHints.length
-    })));
-    
+
+    const memberIdSet = new Set(updatedMembers.map(member => member._id.toString()));
+    const formerIds = [...hintsByUser.keys()].filter(userId => !memberIdSet.has(userId));
+    const formerUsers = formerIds.length
+      ? await User.find({ _id: { $in: formerIds } }).select('username').lean()
+      : [];
+    const formerMemberHints = formerIds.map(userId => ({
+      _id: userId,
+      username: formerUsers.find(user => user._id.toString() === userId)?.username || 'Unknown',
+      unlockedHints: hintsByUser.get(userId)
+    }));
+
     const standings = await aggregateTeamStandings(isAdmin);
     const teamStanding = standings.find(row => row.account_id === team._id.toString());
     const calculatedPoints = teamStanding?.score || 0;
@@ -623,8 +578,10 @@ router.get('/:id', protect, async (req, res) => {
       _id: team._id,
       name: team.name,
       description: team.description,
-      captain: team.captain,
+      captain: updatedMembers.find(member => member._id.toString() === team.captain?._id.toString()) || null,
       members: updatedMembers,
+      hintsUnlocked: teamHints.length,
+      formerMemberHints,
       totalPoints: calculatedPoints,
       points: calculatedPoints,
       rank: rank,
@@ -633,13 +590,6 @@ router.get('/:id', protect, async (req, res) => {
       isCaptain: isTeamCaptain(team, req.user._id),
       solvedChallenges: allSolvedChallenges.size
     };
-
-    // Debug: Log member stats
-    console.log('[Team Details] Member stats:', updatedMembers.map(m => ({
-      username: m.username,
-      points: m.points,
-      solvedCount: m.personallySolvedCount
-    })));
 
     res.json({
       success: true,

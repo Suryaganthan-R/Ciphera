@@ -453,6 +453,15 @@
   text-decoration: underline;
 }
 
+.htb-team-name-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
 .htb-actions {
   display: flex;
   gap: 0.5rem;

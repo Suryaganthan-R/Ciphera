@@ -7,6 +7,45 @@ const { protect, authorize } = require('../middleware/auth');
 const { getRedisClient, clearScoreboardCache } = require('../utils/redis');
 
 const redisClient = getRedisClient();
+const { getTeamScoreDetails, markSolved, markUnsolved } = require('../services/teamSolveService');
+
+const handleScoreRequest = (action) => async (req, res) => {
+  try {
+    const data = await action(req);
+    res.set('Cache-Control', 'no-store');
+    res.json({ success: true, data });
+  } catch (error) {
+    if (!error.status) console.error('[Admin] Team score error:', error);
+    res.status(error.status || 500).json({
+      success: false,
+      message: error.status ? error.message : 'Error updating team score'
+    });
+  }
+};
+
+// @route   GET /api/admin/teams/:teamId/score
+// @desc    Team members, score and solved/unsolved challenges (Admin only)
+router.get('/:teamId/score', protect, authorize('admin'),
+  handleScoreRequest(req => getTeamScoreDetails(req.params.teamId)));
+
+// @route   POST /api/admin/teams/:teamId/solves
+// @desc    Mark a challenge as solved for a team, adding its points (Admin only)
+router.post('/:teamId/solves', protect, authorize('admin'), handleScoreRequest(async req => {
+  const data = await markSolved(req.params.teamId, req.body.challengeId, {
+    userId: req.body.userId,
+    ipAddress: req.ip
+  });
+  console.log(`[Admin] ${req.user.username} marked challenge ${req.body.challengeId} solved for team ${req.params.teamId}`);
+  return data;
+}));
+
+// @route   DELETE /api/admin/teams/:teamId/solves/:challengeId
+// @desc    Mark a challenge as unsolved for a team, removing its points (Admin only)
+router.delete('/:teamId/solves/:challengeId', protect, authorize('admin'), handleScoreRequest(async req => {
+  const data = await markUnsolved(req.params.teamId, req.params.challengeId);
+  console.log(`[Admin] ${req.user.username} marked challenge ${req.params.challengeId} unsolved for team ${req.params.teamId}`);
+  return data;
+}));
 
 /**
  * Admin Team Management Endpoints

@@ -1,4 +1,5 @@
 const express = require('express');
+const { listUnlockedHints } = require('../utils/unlockedHints');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const config = require('../config');
@@ -1092,7 +1093,7 @@ router.get('/me', protect, async (req, res) => {
     }
 
     // Use stored points (updated on submission) instead of recalculating
-    const totalPoints = user.points || 0;
+    const totalPoints = Math.max(0, user.points || 0);
 
     // Get rank from Redis cache (1 minute TTL) or calculate
     let rank = null;
@@ -1118,35 +1119,7 @@ router.get('/me', protect, async (req, res) => {
       }) + 1;
     }
 
-    // Get unlocked hints efficiently (batch query)
-    let formattedHints = [];
-    if (user.unlockedHints && user.unlockedHints.length > 0) {
-      const Unlock = require('../models/Unlock');
-      const Challenge = require('../models/Challenge');
-      
-      // Get unique challenge IDs
-      const challengeIds = [...new Set(user.unlockedHints.map(h => h.challenge))];
-      
-      // Batch fetch all challenges at once
-      const challenges = await Challenge.find({ _id: { $in: challengeIds } })
-        .select('_id title')
-        .lean();
-      
-      // Create lookup map
-      const challengeMap = {};
-      challenges.forEach(c => {
-        challengeMap[c._id.toString()] = c.title;
-      });
-      
-      // Map hints with challenge names
-      formattedHints = user.unlockedHints.map(hint => ({
-        challenge: hint.challenge,
-        challengeName: challengeMap[hint.challenge.toString()] || 'Unknown Challenge',
-        hintIndex: hint.hintIndex,
-        cost: hint.cost || 0,
-        unlockedAt: hint.unlockedAt
-      }));
-    }
+    const formattedHints = await listUnlockedHints({ user: user._id });
 
     // Format team data
     let teamData = null;
@@ -1361,44 +1334,15 @@ router.get('/user/:id', protect, async (req, res) => {
     console.log('[User Profile] Found submissions:', userSubmissions.length);
     console.log('[User Profile] Submissions:', userSubmissions);
 
-    const calculatedPoints = userSubmissions.reduce((sum, sub) => sum + sub.points, 0);
+    // Awards include hint costs paid by players without a team
+    const Award = require('../models/Award');
+    const userAwards = await Award.find({ user: user._id }).select('value').lean();
+    const calculatedPoints = Math.max(0,
+      userSubmissions.reduce((sum, sub) => sum + sub.points, 0)
+      + userAwards.reduce((sum, award) => sum + (award.value || 0), 0));
     
-    // Get unlocked hints with full details from Unlock model
-    const Unlock = require('../models/Unlock');
-    const unlockedHintsWithDetails = await Unlock.aggregate([
-      { $match: { user: user._id, type: 'hints' } },
-      {
-        $lookup: {
-          from: 'challenges',
-          localField: 'challenge',
-          foreignField: '_id',
-          as: 'challengeData'
-        }
-      },
-      { $unwind: '$challengeData' },
-      {
-        $project: {
-          target: 1,
-          challengeId: '$challenge',
-          challengeName: '$challengeData.title',
-          challengeCategory: '$challengeData.category',
-          hintCost: { $arrayElemAt: ['$challengeData.hints.cost', '$target'] },
-          createdAt: 1
-        }
-      },
-      { $sort: { createdAt: -1 } }
-    ]);
-    
-    console.log('[User Profile] Unlocked hints:', {
-      userId: user._id.toString(),
-      unlockedHintsCount: unlockedHintsWithDetails.length,
-      hints: unlockedHintsWithDetails.map(h => ({
-        challenge: h.challengeName,
-        hintIndex: h.target,
-        cost: h.hintCost
-      }))
-    });
-    
+    const unlockedHints = await listUnlockedHints({ user: user._id });
+
     // Build solved challenges array with full details
     const solvedChallengesWithDetails = userSubmissions.map(sub => ({
       _id: sub.challengeId,
@@ -1442,14 +1386,7 @@ router.get('/user/:id', protect, async (req, res) => {
         rank,
         solvedChallenges: solvedChallengesWithDetails,
         challengesSolvedCount: solvedChallengesWithDetails.length,
-        unlockedHints: unlockedHintsWithDetails.map(h => ({
-          challengeId: h.challengeId,
-          challengeName: h.challengeName,
-          challengeCategory: h.challengeCategory,
-          hintIndex: h.target,
-          cost: h.hintCost,
-          unlockedAt: h.createdAt
-        }))
+        unlockedHints
       }
     });
   } catch (error) {

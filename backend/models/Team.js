@@ -55,6 +55,12 @@ const TeamSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  // Incremented inside score-changing transactions so concurrent ones conflict and retry.
+  scoreRevision: {
+    type: Number,
+    default: 0,
+    select: false
+  },
   hidden: {
     type: Boolean,
     default: false

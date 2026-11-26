@@ -47,7 +47,7 @@ const ScoreGraph = ({ type = 'teams', limit = 10, height = '400px' }) => {
         let running = 0;
         const scores = solves.map((entry) => {
           running += Number(entry.value || 0);
-          return [new Date(entry.date), running];
+          return [new Date(entry.date), Math.max(0, running)];
         });
 
         legendData.push(place.name);

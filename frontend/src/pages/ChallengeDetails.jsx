@@ -493,45 +493,37 @@ function ChallengeDetails() {
     }
 
     const hint = challenge.hints[hintIndex];
-    const userPoints = user.points || 0;
-    
-    // Extract team ID properly (handle both string and object cases)
-    const teamId = user.team?._id || user.team;
-    const hasTeam = !!teamId;
 
-    // If user has a team, fetch the latest team points using the team ID
-    let teamPoints = 0;
-    if (hasTeam) {
-      try {
-        const teamRes = await axios.get(`/api/teams/${teamId}`);
-        // Backend calculates: member points + team awards (includes hint deductions)
-        teamPoints = teamRes.data.data.totalPoints || 0;
-        console.log('[CTFd-style] Team total points (with awards):', teamPoints);
-      } catch (err) {
-        console.error('[CTFd-style] Error fetching team points:', err);
-        // Fallback to user.team.points if fetch fails
-        teamPoints = user.team?.points || 0;
-      }
+    // The server calculates the balance the same way it checks it when unlocking
+    let balance;
+    try {
+      const res = await axios.get('/api/unlocks/balance', {
+        params: { challenge: challenge._id, _fresh: Date.now() }
+      });
+      balance = res.data.data;
+    } catch (err) {
+      console.error('Error fetching available points:', err);
+      alert(err.response?.data?.message || 'Could not check your points. Please try again.');
+      return;
     }
 
-    // Use team points if in a team, otherwise use individual points
-    const availablePoints = hasTeam ? teamPoints : userPoints;
-    const pointsType = hasTeam ? 'team' : 'individual';
+    if (balance.solved) {
+      setChallenge(current => ({ ...current, isSolved: true }));
+      alert('This challenge is already solved, so its hints can no longer be unlocked.');
+      return;
+    }
 
-    console.log('[Hint Unlock] Points check:', {
-      hasTeam,
-      teamPoints,
-      userPoints,
-      availablePoints,
-      hintCost: hint.cost
-    });
+    if (balance.available < hint.cost) {
+      alert(`Not enough points to unlock this hint. It costs ${hint.cost} points and you have ${balance.available}.`);
+      return;
+    }
 
     // Show custom confirmation modal with correct points
-    setPendingHintUnlock({ 
-      hint, 
-      hintIndex, 
-      teamPoints: availablePoints, // Pass the actual available points
-      pointsType 
+    setPendingHintUnlock({
+      hint,
+      hintIndex,
+      teamPoints: balance.available,
+      pointsType: balance.scope
     });
     setShowHintConfirm(true);
   };
@@ -621,7 +613,10 @@ function ChallengeDetails() {
     );
   }
 
-  const isSolved = user?.solvedChallenges?.includes(challenge._id);
+  // The server's flag also covers solves by teammates; the user list is the fallback
+  const isSolved = challenge.isSolved ?? Boolean(user?.solvedChallenges?.some(
+    solved => (solved?._id || solved) === challenge._id
+  ));
 
   return (
     <div className="htb-challenge-container">
@@ -789,6 +784,10 @@ function ChallengeDetails() {
                       </div>
                       {showContent ? (
                         <p className="htb-hint-text">{hint.content}</p>
+                      ) : isSolved ? (
+                        <div className="htb-hint-locked">
+                          <p className="htb-login-hint">Hint locked: this challenge is already solved</p>
+                        </div>
                       ) : (
                         <div className="htb-hint-locked">
                           <motion.button
