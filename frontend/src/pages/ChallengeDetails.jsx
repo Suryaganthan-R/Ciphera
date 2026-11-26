@@ -1,4 +1,5 @@
 import { useState, useEffect, useContext } from 'react'
+import { createPortal } from 'react-dom'
 import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronLeft, Award, Users, Lock, Unlock, Flag, AlertCircle, CheckCircle2, Send, X } from 'lucide-react'
@@ -110,6 +111,14 @@ const FlagSubmissionModal = ({ challenge, onClose, onSubmit }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { isEnded, isPaused, isNotStarted, isSubmissionAllowed } = useEventState();
 
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!flag.trim()) {
@@ -134,7 +143,7 @@ const FlagSubmissionModal = ({ challenge, onClose, onSubmit }) => {
     }
   };
 
-  return (
+  return createPortal(
     <AnimatePresence>
       <motion.div 
         className="htb-modal-overlay" 
@@ -144,7 +153,7 @@ const FlagSubmissionModal = ({ challenge, onClose, onSubmit }) => {
         exit={{ opacity: 0 }}
       >
         <motion.div 
-          className="htb-modal-content" 
+          className="htb-modal-content htb-flag-modal-content"
           onClick={(e) => e.stopPropagation()}
           initial={{ scale: 0.9, opacity: 0, y: 20 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
@@ -280,7 +289,8 @@ const FlagSubmissionModal = ({ challenge, onClose, onSubmit }) => {
           </div>
         </motion.div>
       </motion.div>
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 };
 
