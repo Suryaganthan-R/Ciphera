@@ -21,6 +21,7 @@ const { getRedisClient } = require('../utils/redis');
 const { clearScoreboardCache } = require('../utils/redis');
 const monitoring = require('../utils/monitoring');
 const scoringService = require('../services/scoringService');
+const { hasSolved } = require('../utils/teamScore');
 const { 
   upload, 
   handleMulterError, 
@@ -232,12 +233,15 @@ router.get('/:id', async (req, res) => {
     if (token) {
       try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const user = await User.findById(decoded.id).select('role').populate('team');
+        const user = await User.findById(decoded.id)
+          .select('role team solvedChallenges')
+          .populate('team', 'solvedChallenges');
         isAdmin = user && user.role === 'admin';
         
         if (user) {
           userId = user._id;
           teamId = user.team ? user.team._id : null;
+          challenge.isSolved = await hasSolved(challenge._id, user, user.team);
         }
       } catch (e) {
         // Invalid token, treat as non-admin
@@ -684,7 +688,7 @@ router.post('/:id/submit', protect, sanitizeInput, checkEventNotEnded, async (re
         ]);
 
         const awardPoints = userAwards.length > 0 ? userAwards[0].totalAwardPoints : 0;
-        const totalPoints = solvePoints + awardPoints;
+        const totalPoints = Math.max(0, solvePoints + awardPoints);
         
         // Update user.points field for display in profile pages
         await User.findByIdAndUpdate(

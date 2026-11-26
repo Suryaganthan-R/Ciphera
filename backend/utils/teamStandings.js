@@ -93,7 +93,7 @@ async function aggregateTeamStandings(isAdmin = false, freezeTime = null, limit 
     return {
       account_id: team._id.toString(),
       name: team.name,
-      score: standing.score,
+      score: Math.max(0, standing.score),
       date: standing.date,
       account_url: `/teams/${team._id}`
     };

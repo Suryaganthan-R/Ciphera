@@ -181,21 +181,15 @@ function TeamDetails() {
   // Sort members by points (highest first)
   const sortedMembers = [...team.members].sort((a, b) => (b.points || 0) - (a.points || 0));
 
-  // Captain is either from the database (already populated) or defaults to highest scorer
-  let captain = null;
-  if (team.captain) {
-    // If captain is populated as an object with _id
-    if (typeof team.captain === 'object' && team.captain._id) {
-      captain = team.captain;
-    } else {
-      // If captain is just an ID string, find it in members
-      captain = team.members.find(m => m._id === team.captain || m._id.toString() === team.captain.toString());
-    }
-  }
+  // Use the member entry, which carries the calculated points, solves and hints
+  const captainId = team.captain?._id || team.captain;
   // If no captain set, default to highest scorer
-  if (!captain) {
-    captain = sortedMembers[0];
-  }
+  const captain = team.members.find(m => String(m._id) === String(captainId)) || sortedMembers[0];
+
+  const hintGroups = [
+    ...team.members,
+    ...(team.formerMemberHints || []).map(m => ({ ...m, username: `${m.username} (former member)` }))
+  ].filter(m => m.unlockedHints?.length > 0);
 
   return (
     <div className="htb-team-container">
@@ -304,7 +298,7 @@ function TeamDetails() {
             <div className="htb-stat-content">
               <div className="htb-stat-label">Challenges Solved</div>
               <div className="htb-stat-value">
-                {team.members.reduce((sum, member) => sum + (member.personallySolvedChallenges?.length || 0), 0)}
+                {team.solvedChallenges || 0}
               </div>
             </div>
           </motion.div>
@@ -401,7 +395,7 @@ function TeamDetails() {
           )}
         </motion.div>
 
-        {team.members.some(m => m.unlockedHints && m.unlockedHints.length > 0) && (
+        {hintGroups.length > 0 && (
           <motion.div 
             className="htb-team-section"
             initial={{ opacity: 0, y: 20 }}
@@ -410,11 +404,10 @@ function TeamDetails() {
           >
             <h2 className="htb-section-title">
               <span className="htb-title-line"></span>
-              Unlocked Hints
+              Unlocked Hints ({team.hintsUnlocked || 0})
             </h2>
             <div className="htb-hints-list">
-              {team.members.map((member, memberIndex) => (
-                member.unlockedHints && member.unlockedHints.length > 0 && (
+              {hintGroups.map((member, memberIndex) => (
                   <motion.div 
                     key={member._id}
                     className="htb-member-hints-group"
@@ -451,7 +444,6 @@ function TeamDetails() {
                       ))}
                     </div>
                   </motion.div>
-                )
               ))}
             </div>
           </motion.div>

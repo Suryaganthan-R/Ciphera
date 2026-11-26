@@ -10,6 +10,7 @@ import axios from 'axios';
 import AuthContext from '../context/AuthContext';
 import { Loading } from '../components/ui';
 import './AdminDashboard.css';
+import TeamScoreModal from '../components/TeamScoreModal';
 
 function AdminDashboard() {
   const { isAuthenticated, user } = useContext(AuthContext);
@@ -28,6 +29,7 @@ function AdminDashboard() {
 
   const [userPage, setUserPage] = useState(1);
   const [teamPage, setTeamPage] = useState(1);
+  const [scoreTeamId, setScoreTeamId] = useState(null);
   const [challengePage, setChallengePage] = useState(1);
   const [userTotal, setUserTotal] = useState(0);
   const [teamTotal, setTeamTotal] = useState(0);
@@ -304,7 +306,8 @@ function AdminDashboard() {
     try {
       const res = await axios.put(`/api/teams/${teamId}`, updates);
       const updated = res.data?.data || updates;
-      setTeams(teams.map(t => t._id === teamId ? { ...t, ...updated } : t));
+      // The update response has no calculated score, so keep the one already shown
+      setTeams(teams.map(t => t._id === teamId ? { ...t, ...updated, points: t.points } : t));
       setSuccessMessage('Team updated');
       setTimeout(() => setSuccessMessage(''), 2000);
     } catch (err) {
@@ -604,9 +607,14 @@ function AdminDashboard() {
                       transition={{ delay: idx * 0.02 }}
                     >
                       <td>
-                        <Link to={`/teams/${t._id}`} className="htb-team-link">
+                        <button
+                          type="button"
+                          className="htb-team-link htb-team-name-btn"
+                          onClick={() => setScoreTeamId(t._id)}
+                          title="View members and manage score"
+                        >
                           <strong>{t.name}</strong>
-                        </Link>
+                        </button>
                       </td>
                       <td>{t.members?.length || 0}/2</td>
                       <td>
@@ -654,6 +662,15 @@ function AdminDashboard() {
                 Next <ChevronRight size={16} />
               </button>
             </div>
+
+            {scoreTeamId && (
+              <TeamScoreModal
+                teamId={scoreTeamId}
+                onClose={() => setScoreTeamId(null)}
+                onScoreChange={(teamId, points) => setTeams(current =>
+                  current.map(t => t._id === teamId ? { ...t, points } : t))}
+              />
+            )}
           </div>
         )}
 

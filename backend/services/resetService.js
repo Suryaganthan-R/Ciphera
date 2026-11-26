@@ -3,6 +3,8 @@ const User = require('../models/User');
 const Team = require('../models/Team');
 const Challenge = require('../models/Challenge');
 const Submission = require('../models/Submission');
+const Unlock = require('../models/Unlock');
+const Award = require('../models/Award');
 const Hint = require('../models/Challenge'); // Hints are part of Challenge schema
 const Notice = require('../models/Notice');
 const LoginLog = require('../models/LoginLog');
@@ -77,6 +79,10 @@ const fullPlatformReset = async (adminId, securityCode) => {
 
     // Delete all submissions
     const submissionDeleteResult = await Submission.deleteMany({}, { session });
+
+    // Delete hint unlocks and awards (including hint deductions)
+    await Unlock.deleteMany({}, { session });
+    await Award.deleteMany({}, { session });
 
     // Delete all notices
     const noticeDeleteResult = await Notice.deleteMany({}, { session });
@@ -231,6 +237,10 @@ const competitionProgressReset = async (adminId, securityCode) => {
 
     // Delete all submissions
     const submissionDeleteResult = await Submission.deleteMany({}, { session });
+
+    // Delete hint unlocks and awards (including hint deductions)
+    await Unlock.deleteMany({}, { session });
+    await Award.deleteMany({}, { session });
 
     // Reset all competition timers
     const timerUpdateResult = await CompetitionTimer.updateMany(

@@ -34,6 +34,12 @@ const UserSchema = new mongoose.Schema({
     enum: ['user', 'admin'],
     default: 'user'
   },
+  // Incremented inside score-changing transactions so concurrent ones conflict and retry.
+  scoreRevision: {
+    type: Number,
+    default: 0,
+    select: false
+  },
   hidden: {
     type: Boolean,
     default: false
