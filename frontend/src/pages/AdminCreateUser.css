@@ -49,6 +49,48 @@
   margin: 0;
 }
 
+.registration-setting {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem 1rem;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  border: 1px solid rgba(95,148,79, 0.24);
+  border-radius: 8px;
+  background: rgba(10,14,26, 0.42);
+}
+
+.registration-setting h2 {
+  margin: 0 0 0.25rem;
+  color: #dae4f2;
+  font-size: 1rem;
+}
+
+.registration-setting p {
+  margin: 0;
+  color: #90a5c2;
+  font-size: 0.85rem;
+}
+
+.registration-setting-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: #dae4f2;
+  white-space: nowrap;
+}
+
+.registration-setting-toggle input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: #4f9b50;
+}
+
+.registration-setting-message {
+  grid-column: 1 / -1;
+}
+
 .create-user-form {
   display: flex;
   flex-direction: column;

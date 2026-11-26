@@ -2,10 +2,12 @@ import { useState, useContext, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import AuthContext from '../context/AuthContext';
+import { useSiteConfig } from '../context/SiteConfigContext';
 import './AdminCreateUser.css';
 
 function AdminCreateUser() {
   const { isAuthenticated, user } = useContext(AuthContext);
+  const { visibility, updateVisibility } = useSiteConfig();
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
@@ -22,6 +24,8 @@ function AdminCreateUser() {
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUpdatingRegistration, setIsUpdatingRegistration] = useState(false);
+  const [registrationMessage, setRegistrationMessage] = useState('');
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -44,6 +48,19 @@ function AdminCreateUser() {
     const { name, checked } = e.target;
     setFormData(prev => ({ ...prev, [name]: checked }));
     setError('');
+  };
+
+  const handleRegistrationToggle = async (e) => {
+    setIsUpdatingRegistration(true);
+    setRegistrationMessage('');
+    const result = await updateVisibility({
+      ...visibility,
+      registration: e.target.checked ? 'public' : 'private'
+    });
+    setIsUpdatingRegistration(false);
+    setRegistrationMessage(result.success
+      ? `Public registration ${e.target.checked ? 'enabled' : 'disabled'}.`
+      : result.message || 'Failed to update registration setting.');
   };
 
   const validateForm = () => {
@@ -129,6 +146,25 @@ function AdminCreateUser() {
           <h1>Create New <span className="highlight">User</span></h1>
           <p>Add a new user to the platform</p>
         </div>
+
+        <section className="registration-setting" aria-labelledby="registration-setting-title">
+          <div>
+            <h2 id="registration-setting-title">Public Registration</h2>
+            <p>Allow new users to create accounts with Google sign-in.</p>
+          </div>
+          <label className="registration-setting-toggle">
+            <input
+              type="checkbox"
+              checked={visibility.registration === 'public'}
+              onChange={handleRegistrationToggle}
+              disabled={isUpdatingRegistration}
+            />
+            <span>{isUpdatingRegistration ? 'Saving...' : visibility.registration === 'public' ? 'Enabled' : 'Disabled'}</span>
+          </label>
+          {registrationMessage && (
+            <p className="registration-setting-message" role="status">{registrationMessage}</p>
+          )}
+        </section>
 
         {error && <div className="error-message">{error}</div>}
         {successMessage && <div className="success-message">{successMessage}</div>}

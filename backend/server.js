@@ -397,7 +397,7 @@ mongoose.set('bufferCommands', false); // Disable mongoose buffering
 mongoose.set('strictQuery', true); // Enable strict mode for queries
 
 let mongoRetryTimer = null;
-const mongoRetryDelayMs = parseInt(process.env.MONGO_RETRY_DELAY_MS, 5000);
+const mongoRetryDelayMs = parseInt(process.env.MONGO_RETRY_DELAY_MS, 10) || 5000;
 const allowMemoryMongo =
   process.env.NODE_ENV !== 'production' && process.env.ENABLE_MEMORY_MONGO === 'true';
 let memoryMongoServer = null;

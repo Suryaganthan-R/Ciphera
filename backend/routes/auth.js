@@ -287,6 +287,13 @@ router.post('/google', async (req, res) => {
       }
     });
   } catch (error) {
+    if (User.db.readyState !== 1) {
+      return res.status(503).json({
+        success: false,
+        message: 'Google sign-in is temporarily unavailable because the database is disconnected. Check MongoDB Atlas Network Access and try again.'
+      });
+    }
+
     console.error('Google sign-in error:', error);
     res.status(401).json({
       success: false,

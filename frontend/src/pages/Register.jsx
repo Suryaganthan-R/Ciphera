@@ -3,14 +3,17 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Mail, User, Users, FileText, ArrowLeft, UserPlus, Shield } from 'lucide-react';
 import AuthContext from '../context/AuthContext';
+import { useSiteConfig } from '../context/SiteConfigContext';
 import { Alert } from '../components/ui';
 import GoogleSignInButton from '../components/GoogleSignInButton';
 import './Auth.css';
 
 function Register() {
   const { loginWithGoogle } = useContext(AuthContext);
+  const { visibility } = useSiteConfig();
   const navigate = useNavigate();
   const [formError, setFormError] = useState('');
+  const registrationEnabled = visibility.registration === 'public';
 
   const onGoogleCredential = async (credential) => {
     setFormError('');
@@ -44,7 +47,9 @@ function Register() {
             <span className="htb-gradient-text">Competition</span>
           </h1>
           <p className="htb-auth-brand-subtitle">
-            Registration is managed by administrators to ensure platform security and quality
+            {registrationEnabled
+              ? 'Create your account with Google and join the competition.'
+              : 'Registration is managed by administrators to ensure platform security and quality'}
           </p>
         </motion.div>
 
@@ -56,14 +61,16 @@ function Register() {
           transition={{ duration: 0.6, delay: 0.2 }}
         >
           <div className="htb-auth-card-header">
-            <h2>Request Access</h2>
-            <p>Contact an administrator to create your account</p>
+            <h2>{registrationEnabled ? 'Create an Account' : 'Request Access'}</h2>
+            <p>{registrationEnabled
+              ? 'Continue with Google to create your account or sign in.'
+              : 'Contact an administrator to create your account'}</p>
           </div>
 
           {formError && <Alert type="warning">{formError}</Alert>}
           <GoogleSignInButton onCredential={onGoogleCredential} onError={setFormError} />
 
-          <div className="htb-register-info">
+          {!registrationEnabled && <div className="htb-register-info">
             <h3 className="htb-register-title">Required Information</h3>
             <p className="htb-register-description">
               Provide the following details when contacting us:
@@ -127,7 +134,7 @@ function Register() {
                 <span>ciphera@gmail.com</span>
               </a>
             </div>
-          </div>
+          </div>}
 
           <div className="htb-auth-footer">
             <p className="htb-auth-footer-text">
