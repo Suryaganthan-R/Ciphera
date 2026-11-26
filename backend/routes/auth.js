@@ -3,6 +3,7 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const config = require('../config');
 const User = require('../models/User');
+const Team = require('../models/Team');
 const Configuration = require('../models/Configuration');
 const LoginLog = require('../models/LoginLog');
 const { protect, authorize } = require('../middleware/auth');
@@ -500,8 +501,7 @@ router.post('/register-admin', protect, authorize('admin'), async (req, res) => 
       });
     }
 
-    // Create user
-    const user = await User.create({
+    const userData = {
       username: validatedUsername,
       email: validatedEmail,
       password: validatedPassword,
@@ -512,9 +512,42 @@ router.post('/register-admin', protect, authorize('admin'), async (req, res) => 
       banned: !!banned,
       isBlocked: !!banned,
       blockedReason: banned ? 'Banned by admin' : null,
-      blockedAt: banned ? new Date() : null,
-      team: teamId || undefined
-    });
+      blockedAt: banned ? new Date() : null
+    };
+
+    let user;
+    if (teamId) {
+      if (type === 'admin') {
+        return res.status(400).json({ success: false, message: 'Admin accounts cannot join teams' });
+      }
+      const mongoose = require('mongoose');
+      const session = await mongoose.startSession();
+      try {
+        await session.withTransaction(async () => {
+          const team = await Team.findById(teamId).session(session);
+          if (!team || team.banned || team.members.length >= 4) {
+            throw new Error(!team ? 'Team not found' : team.banned ? 'This team is unavailable' : 'Team already has four members');
+          }
+          const [createdUser] = await User.create([userData], { session });
+          const updatedTeam = await Team.findOneAndUpdate(
+            {
+              _id: team._id,
+              $expr: { $lt: [{ $size: { $ifNull: ['$members', []] } }, 4] }
+            },
+            { $addToSet: { members: createdUser._id } },
+            { new: true, session }
+          );
+          if (!updatedTeam) throw new Error('Team already has four members');
+          createdUser.team = team._id;
+          await createdUser.save({ session });
+          user = createdUser;
+        });
+      } finally {
+        await session.endSession();
+      }
+    } else {
+      user = await User.create(userData);
+    }
 
     // Populate team if exists
     if (user.team) {

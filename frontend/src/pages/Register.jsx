@@ -1,5 +1,5 @@
 import React, { useContext, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Mail, User, Users, FileText, ArrowLeft, UserPlus, Shield } from 'lucide-react';
 import AuthContext from '../context/AuthContext';
@@ -12,14 +12,19 @@ function Register() {
   const { loginWithGoogle } = useContext(AuthContext);
   const { visibility } = useSiteConfig();
   const navigate = useNavigate();
+  const location = useLocation();
   const [formError, setFormError] = useState('');
   const registrationEnabled = visibility.registration === 'public';
+  const returnTo = location.state?.from;
+  const destination = typeof returnTo === 'string' && returnTo.startsWith('/') && !returnTo.startsWith('//')
+    ? returnTo
+    : '/';
 
   const onGoogleCredential = async (credential) => {
     setFormError('');
     try {
       await loginWithGoogle(credential);
-      navigate('/');
+      navigate(destination, { replace: true });
     } catch (err) {
       setFormError(err.message);
     }
@@ -138,7 +143,7 @@ function Register() {
 
           <div className="htb-auth-footer">
             <p className="htb-auth-footer-text">
-              Already have an account? <Link to="/login" className="htb-auth-link">Sign In</Link>
+              Already have an account? <Link to="/login" state={{ from: destination }} className="htb-auth-link">Sign In</Link>
             </p>
           </div>
         </motion.div>

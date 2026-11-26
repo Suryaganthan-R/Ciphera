@@ -1,9 +1,133 @@
 .my-team-container {
   min-height: 80vh;
+  display: block;
+  padding: 2rem clamp(1rem, 4vw, 3rem);
+  background: linear-gradient(180deg, rgba(8,17,10, 0.95) 0%, #000 100%);
+}
+
+.my-team-panel {
+  width: min(100%, 980px);
+  margin: 0 auto;
+  padding: clamp(1.25rem, 3vw, 2rem);
+  border: 1px solid rgba(95,148,79, 0.24);
+  border-radius: 12px;
+  background: rgba(10,14,26, 0.68);
+}
+
+.my-team-heading {
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 2rem;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  color: #a9ca67;
+}
+
+.my-team-heading h1,
+.my-team-heading p {
+  margin: 0;
+}
+
+.my-team-heading h1 {
+  color: #f8fafc;
+  font-size: 1.6rem;
+}
+
+.my-team-heading p,
+.my-team-form small {
+  margin-top: 0.35rem;
+  color: #a0a9b5;
+}
+
+.my-team-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.my-team-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 1.25rem;
+  border: 1px solid rgba(95,148,79, 0.2);
+  border-radius: 8px;
+  background: rgba(15,23,42, 0.48);
+}
+
+.my-team-form h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0 0 0.35rem;
+  color: #f8fafc;
+  font-size: 1.1rem;
+}
+
+.my-team-form label {
+  color: #d3dae2;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.my-team-form input,
+.my-team-form select {
+  width: 100%;
+  min-height: 42px;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid rgba(95,148,79, 0.28);
+  border-radius: 6px;
+  background: #0a0e1a;
+  color: #f8fafc;
+}
+
+.my-team-form button {
+  min-height: 42px;
+  margin-top: 0.4rem;
+  border: 1px solid #4f9b50;
+  border-radius: 6px;
+  background: #1d3924;
+  color: #f8fafc;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.my-team-form button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.my-team-or {
+  padding: 0.25rem 0;
+  color: #89929e;
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.my-team-feedback {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-bottom: 1rem;
+  padding: 0.8rem 1rem;
+  border-radius: 6px;
+}
+
+.my-team-error {
+  border: 1px solid rgba(248,113,113, 0.4);
+  background: rgba(127,29,29, 0.2);
+  color: #fca5a5;
+}
+
+.my-team-success {
+  border: 1px solid rgba(74,222,128, 0.35);
+  background: rgba(20,83,45, 0.2);
+  color: #86efac;
+}
+
+@media (max-width: 720px) {
+  .my-team-actions-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .loading {

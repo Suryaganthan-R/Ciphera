@@ -1,5 +1,5 @@
 import React, { useState, useContext } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Mail, Lock } from 'lucide-react';
 import AuthContext from '../context/AuthContext';
@@ -22,6 +22,11 @@ function Login() {
   const { login, loginWithGoogle, clearErrors } = useContext(AuthContext);
   const { eventName } = useSiteConfig();
   const navigate = useNavigate();
+  const location = useLocation();
+  const returnTo = location.state?.from;
+  const destination = typeof returnTo === 'string' && returnTo.startsWith('/') && !returnTo.startsWith('//')
+    ? returnTo
+    : '/';
 
   const { email, password } = formData;
 
@@ -56,7 +61,7 @@ function Login() {
     try {
       await login({ email, password });
       Logger.info('LOGIN_SUCCESS', { email });
-      navigate('/');
+      navigate(destination, { replace: true });
     } catch (err) {
       Logger.error('LOGIN_FAILED', { email, error: err.message });
       
@@ -84,7 +89,7 @@ function Login() {
     setFormError('');
     try {
       await loginWithGoogle(credential);
-      navigate('/');
+      navigate(destination, { replace: true });
     } catch (err) {
       setFormError(err.message);
     } finally {
@@ -174,7 +179,7 @@ function Login() {
 
           <div className="htb-auth-footer">
             <p className="htb-auth-footer-text">
-              Don't have an account? <Link to="/register" className="htb-auth-link">Contact Admin</Link>
+              Don't have an account? <Link to="/register" state={{ from: destination }} className="htb-auth-link">Contact Admin</Link>
             </p>
           </div>
         </motion.div>

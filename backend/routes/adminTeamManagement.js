@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 const Team = require('../models/Team');
 const User = require('../models/User');
 const { protect, authorize } = require('../middleware/auth');
-const { getRedisClient } = require('../utils/redis');
+const { getRedisClient, clearScoreboardCache } = require('../utils/redis');
 
 const redisClient = getRedisClient();
 
@@ -112,7 +112,7 @@ router.put('/:teamId/members/add', protect, authorize('admin'), async (req, res)
       }
 
       // Check max members
-      const MAX_TEAM_MEMBERS = parseInt(process.env.MAX_TEAM_MEMBERS) || 2;
+      const MAX_TEAM_MEMBERS = 4;
       if (team.members.length >= MAX_TEAM_MEMBERS) {
         throw new Error(`Team already has maximum ${MAX_TEAM_MEMBERS} members`);
       }
@@ -146,6 +146,7 @@ router.put('/:teamId/members/add', protect, authorize('admin'), async (req, res)
     // Invalidate team points cache since team composition changed
     const { invalidateTeamPoints } = require('../utils/teamPointsCache');
     await invalidateTeamPoints(teamId);
+    await clearScoreboardCache();
 
     console.log(`[Admin] User ${userId} added to team ${teamId} by admin ${req.user.username}`);
 
@@ -195,6 +196,10 @@ router.put('/:teamId/members/remove', protect, authorize('admin'), async (req, r
         throw new Error('User is not a member of this team');
       }
 
+      if (team.captain && team.captain.toString() === userId) {
+        throw Object.assign(new Error('Assign a new captain before removing the current captain'), { status: 409 });
+      }
+
       // Remove member from team
       team.members.splice(memberIndex, 1);
 
@@ -223,6 +228,7 @@ router.put('/:teamId/members/remove', protect, authorize('admin'), async (req, r
     // Invalidate team points cache since team composition changed
     const { invalidateTeamPoints } = require('../utils/teamPointsCache');
     await invalidateTeamPoints(teamId);
+    await clearScoreboardCache();
 
     console.log(`[Admin] User ${userId} removed from team ${teamId} by admin ${req.user.username}`);
 
@@ -234,7 +240,7 @@ router.put('/:teamId/members/remove', protect, authorize('admin'), async (req, r
   } catch (error) {
     await session.endSession();
     console.error('Remove member error:', error);
-    res.status(500).json({
+    res.status(error.status || 500).json({
       success: false,
       message: error.message || 'Error removing member'
     });

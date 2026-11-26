@@ -1,7 +1,7 @@
 import { useState, useEffect, useContext } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ChevronLeft, Users, Award, Trophy, Zap, Crown, Lock, Shield } from 'lucide-react';
+import { ChevronLeft, Users, Award, Trophy, Zap, Crown, Lock, Shield, Link2, KeyRound, Trash2, LogOut } from 'lucide-react';
 import axios from 'axios';
 import AuthContext from '../context/AuthContext';
 import { Loading } from '../components/ui';
@@ -10,11 +10,21 @@ import './TeamDetails.css';
 function TeamDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { isAuthenticated, loading: authLoading } = useContext(AuthContext);
+  const { isAuthenticated, loading: authLoading, user } = useContext(AuthContext);
 
   const [team, setTeam] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [teamPassword, setTeamPassword] = useState('');
+  const [inviteUrl, setInviteUrl] = useState('');
+  const [actionMessage, setActionMessage] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
+
+  const fetchTeamDetails = async () => {
+    const res = await axios.get(`/api/teams/${id}`);
+    setTeam(res.data.data);
+  };
 
   useEffect(() => {
     const fetchTeamDetails = async () => {
@@ -30,13 +40,7 @@ function TeamDetails() {
 
       try {
         // Cookie sent automatically
-        const res = await axios.get(`/api/teams/${id}`);
-        setTeam(res.data.data);
-        console.log('Team data loaded:', res.data.data);
-        console.log('Team members unlockedHints:', res.data.data.members.map(m => ({
-          username: m.username,
-          unlockedHints: m.unlockedHints
-        })));
+        await fetchTeamDetails();
       } catch (err) {
         console.error('Error fetching team details:', err);
         setError(err.response?.data?.message || 'Failed to load team details');
@@ -47,6 +51,71 @@ function TeamDetails() {
 
     fetchTeamDetails();
   }, [id, isAuthenticated, authLoading, navigate]);
+
+  const handleCreateInvite = async () => {
+    setActionLoading(true);
+    setActionError('');
+    try {
+      const response = await axios.post('/api/teams/my/team/invite');
+      setInviteUrl(`${window.location.origin}/my-team?invite=${encodeURIComponent(response.data.inviteCode)}`);
+      setActionMessage('Invite link ready to share.');
+    } catch (actionErrorResponse) {
+      setActionError(actionErrorResponse.response?.data?.message || 'Failed to create an invite link.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCopyInvite = async () => {
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
+      setActionMessage('Invite link copied.');
+    } catch {
+      setActionError('Could not copy automatically. Select and copy the invite link.');
+    }
+  };
+
+  const handlePasswordChange = async (event) => {
+    event.preventDefault();
+    setActionLoading(true);
+    setActionError('');
+    setActionMessage('');
+    try {
+      await axios.put('/api/teams/my/team/password', { password: teamPassword });
+      setTeamPassword('');
+      setActionMessage('Team password updated.');
+    } catch (actionErrorResponse) {
+      setActionError(actionErrorResponse.response?.data?.message || 'Failed to update team password.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleLeaveTeam = async () => {
+    if (!window.confirm('Leave this team? Your past solves will no longer count toward its team score.')) return;
+    setActionLoading(true);
+    setActionError('');
+    try {
+      await axios.delete('/api/teams/my/team/membership');
+      navigate('/my-team', { replace: true });
+    } catch (actionErrorResponse) {
+      setActionError(actionErrorResponse.response?.data?.message || 'Failed to leave team.');
+      setActionLoading(false);
+    }
+  };
+
+  const handleDisbandTeam = async () => {
+    if (!window.confirm(`Disband ${team.name}? This removes the team and clears all member assignments.`)) return;
+    setActionLoading(true);
+    setActionError('');
+    try {
+      await axios.delete('/api/teams/my/team');
+      navigate('/my-team', { replace: true });
+    } catch (actionErrorResponse) {
+      setActionError(actionErrorResponse.response?.data?.message || 'Failed to disband team.');
+      setActionLoading(false);
+    }
+  };
 
   // Show loading only after auth is done
   if (authLoading || loading) {
@@ -147,6 +216,49 @@ function TeamDetails() {
       </motion.div>
 
       <div className="htb-team-main">
+        <motion.section className="htb-team-controls" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          {actionError && <p className="htb-team-action-message htb-team-action-error">{actionError}</p>}
+          {actionMessage && <p className="htb-team-action-message">{actionMessage}</p>}
+          {team.isCaptain ? (
+            <>
+              <div className="htb-team-action-row">
+                <button type="button" className="htb-team-action-btn" onClick={handleCreateInvite} disabled={actionLoading}>
+                  <Link2 size={17} /> {actionLoading ? 'Working...' : 'Create invite link'}
+                </button>
+                <button type="button" className="htb-team-action-btn htb-team-action-danger" onClick={handleDisbandTeam} disabled={actionLoading}>
+                  <Trash2 size={17} /> Disband team
+                </button>
+              </div>
+              {inviteUrl && (
+                <div className="htb-team-invite-row">
+                  <input aria-label="Team invite link" value={inviteUrl} readOnly onFocus={event => event.target.select()} />
+                  <button type="button" className="htb-team-action-btn" onClick={handleCopyInvite}>Copy link</button>
+                </div>
+              )}
+              <form className="htb-team-password-form" onSubmit={handlePasswordChange}>
+                <label htmlFor="new-team-password"><KeyRound size={16} /> Change team password</label>
+                <input
+                  id="new-team-password"
+                  type="password"
+                  value={teamPassword}
+                  onChange={event => setTeamPassword(event.target.value)}
+                  minLength={8}
+                  autoComplete="new-password"
+                  placeholder="At least 8 characters"
+                  required
+                />
+                <button type="submit" className="htb-team-action-btn" disabled={actionLoading || !teamPassword}>
+                  Update password
+                </button>
+              </form>
+            </>
+          ) : team.members.some(member => String(member._id) === String(user?._id || user?.id)) ? (
+            <button type="button" className="htb-team-action-btn htb-team-action-danger" onClick={handleLeaveTeam} disabled={actionLoading}>
+              <LogOut size={17} /> Leave team
+            </button>
+          ) : null}
+        </motion.section>
+
         <motion.div 
           className="htb-team-stats"
           initial={{ opacity: 0 }}

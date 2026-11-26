@@ -320,15 +320,17 @@ function Challenges() {
               </div>
 
               <div className="filter-section">
-                <label className="filter-label">
-                  <Filter size={16} />
-                  Category
-                </label>
-                {user?.role === 'admin' && (
-                  <Link className="category-manage-link" to="/admin/categories">
-                    Create or delete categories
-                  </Link>
-                )}
+                <div className="category-filter-heading">
+                  <label className="filter-label">
+                    <Filter size={16} />
+                    Category
+                  </label>
+                  {user?.role === 'admin' && (
+                    <Link className="category-manage-link" to="/admin/categories">
+                      Create or delete categories
+                    </Link>
+                  )}
+                </div>
                 <div className="filter-buttons">
                   {categories.map((cat) => (
                     <button

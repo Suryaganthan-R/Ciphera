@@ -7,10 +7,11 @@ import './AdminCreateTeam.css';
 function AdminCreateTeam() {
   const { isAuthenticated, user } = useContext(AuthContext);
   const navigate = useNavigate();
-  const DEFAULT_MAX_MEMBERS = 2;
+  const DEFAULT_MAX_MEMBERS = 4;
 
   const [formData, setFormData] = useState({
     name: '',
+    password: '',
     description: '',
     members: [],
     captain: '',
@@ -154,6 +155,7 @@ function AdminCreateTeam() {
         '/api/teams',
         {
           name: formData.name,
+          password: formData.password,
           description: formData.description,
           members: formData.members,
           captain: formData.captain,
@@ -166,6 +168,7 @@ function AdminCreateTeam() {
       setSuccessMessage('Team created successfully!');
       setFormData({
         name: '',
+        password: '',
         description: '',
         members: [],
         captain: '',
@@ -199,7 +202,7 @@ function AdminCreateTeam() {
       <div className="create-team-container">
         <div className="create-team-header">
           <h1>Create New <span className="highlight">Team</span></h1>
-          <p>Add a new team with configurable member limit</p>
+          <p>Create a team with up to four members</p>
         </div>
 
         {error && <div className="error-message">{error}</div>}
@@ -217,6 +220,21 @@ function AdminCreateTeam() {
               placeholder="Enter team name"
               required
             />
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="password">Team Password *</label>
+            <input
+              type="password"
+              id="password"
+              name="password"
+              value={formData.password}
+              onChange={handleChange}
+              minLength="8"
+              autoComplete="new-password"
+              required
+            />
+            <span className="form-hint">The captain can change this password later.</span>
           </div>
 
           <div className="form-group">
@@ -240,11 +258,11 @@ function AdminCreateTeam() {
               value={formData.maxMembers}
               onChange={handleChange}
               min="1"
-              max="10"
+              max="4"
               required
             />
             <span className="form-hint">
-              Set the maximum number of members allowed in this team (1-10)
+              Maximum four members per team
             </span>
           </div>
 

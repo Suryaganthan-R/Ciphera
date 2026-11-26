@@ -1,9 +1,271 @@
 const express = require('express');
 const router = express.Router();
+const bcrypt = require('bcryptjs');
 const Team = require('../models/Team');
 const User = require('../models/User');
-const Award = require('../models/Award');
 const { protect, authorize } = require('../middleware/auth');
+const { invalidateTeamPoints } = require('../utils/teamPointsCache');
+const { clearScoreboardCache } = require('../utils/redis');
+const { aggregateTeamStandings } = require('../utils/teamStandings');
+
+const MAX_TEAM_MEMBERS = 4;
+const isTeamCaptain = (team, userId) => {
+  const captainId = team.captain?._id || team.captain;
+  return captainId?.toString() === userId.toString();
+};
+const sendTeamError = (res, error, fallback) => {
+  if (error.code === 11000) {
+    return res.status(409).json({ success: false, message: 'A team with that name already exists' });
+  }
+  return res.status(error.status || 500).json({
+    success: false,
+    message: error.status ? error.message : (process.env.NODE_ENV === 'development' ? error.message : fallback)
+  });
+};
+
+const invalidateTeamCaches = async (teamId) => {
+  if (teamId) await invalidateTeamPoints(teamId);
+  await clearScoreboardCache();
+};
+
+// Create a team with the current user as captain.
+router.post('/self', protect, async (req, res) => {
+  const mongoose = require('mongoose');
+  const session = await mongoose.startSession();
+  try {
+    const name = String(req.body.name || '').trim();
+    const password = String(req.body.password || '');
+    if (!name || name.length > 100) {
+      throw Object.assign(new Error('Team name is required and must be at most 100 characters'), { status: 400 });
+    }
+    if (password.length < 8 || Buffer.byteLength(password, 'utf8') > 72) {
+      throw Object.assign(new Error('Team password must be at least 8 characters and no more than 72 bytes'), { status: 400 });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    let createdTeam;
+    await session.withTransaction(async () => {
+      const currentUser = await User.findOne({ _id: req.user._id, team: null }).session(session);
+      if (!currentUser) {
+        throw Object.assign(new Error('Leave your current team before creating another'), { status: 409 });
+      }
+
+      const nameKey = name.toLocaleLowerCase('en');
+      const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const existingTeam = await Team.findOne({
+        $or: [{ nameKey }, { name: { $regex: `^${escapedName}$`, $options: 'i' } }]
+      }).session(session);
+      if (existingTeam) {
+        throw Object.assign(new Error('A team with that name already exists'), { status: 409 });
+      }
+
+      const [team] = await Team.create([{
+        name,
+        nameKey,
+        passwordHash,
+        members: [currentUser._id],
+        captain: currentUser._id,
+        createdBy: currentUser._id,
+        maxMembers: MAX_TEAM_MEMBERS
+      }], { session });
+
+      const userUpdate = await User.updateOne(
+        { _id: currentUser._id, team: null },
+        { $set: { team: team._id } },
+        { session }
+      );
+      if (!userUpdate.modifiedCount) {
+        throw Object.assign(new Error('You have already joined a team'), { status: 409 });
+      }
+      createdTeam = team;
+    });
+    await session.endSession();
+    await invalidateTeamCaches(createdTeam._id);
+    return res.status(201).json({ success: true, data: createdTeam });
+  } catch (error) {
+    await session.endSession();
+    return sendTeamError(res, error, 'Error creating team');
+  }
+});
+
+// List teams that users can join by password.
+router.get('/available', protect, async (req, res) => {
+  try {
+    const teams = await Team.find({ hidden: { $ne: true }, banned: { $ne: true } })
+      .select('name members maxMembers')
+      .sort({ name: 1 })
+      .lean();
+    return res.json({
+      success: true,
+      data: teams.map(team => ({
+        _id: team._id,
+        name: team.name,
+        memberCount: team.members?.length || 0,
+        maxMembers: Math.min(team.maxMembers || MAX_TEAM_MEMBERS, MAX_TEAM_MEMBERS)
+      }))
+    });
+  } catch (error) {
+    console.error('Error fetching joinable teams:', error);
+    return res.status(500).json({ success: false, message: 'Error fetching teams' });
+  }
+});
+
+router.post('/join', protect, async (req, res) => {
+  const mongoose = require('mongoose');
+  const session = await mongoose.startSession();
+  try {
+    const inviteCode = String(req.body.inviteCode || '').trim();
+    const teamId = req.body.teamId;
+    const password = String(req.body.password || '');
+    if (!inviteCode && !teamId) {
+      throw Object.assign(new Error('Select a team or use an invitation link'), { status: 400 });
+    }
+    if (!inviteCode && !mongoose.Types.ObjectId.isValid(teamId)) {
+      throw Object.assign(new Error('Invalid team selection'), { status: 400 });
+    }
+
+    let joinedTeam;
+    await session.withTransaction(async () => {
+      const currentUser = await User.findById(req.user._id).session(session);
+      if (!currentUser) throw Object.assign(new Error('User not found'), { status: 404 });
+      if (currentUser.team) throw Object.assign(new Error('You can only belong to one team'), { status: 409 });
+
+      let teamQuery = inviteCode ? { inviteCode } : { _id: teamId };
+      let team = await Team.findOne(teamQuery).select('+passwordHash +inviteCode').session(session);
+      if (!team || team.hidden || team.banned) {
+        throw Object.assign(new Error('Team not found or unavailable'), { status: 404 });
+      }
+      if (!inviteCode) {
+        if (!team.passwordHash || !await bcrypt.compare(password, team.passwordHash)) {
+          throw Object.assign(new Error('Incorrect team password'), { status: 401 });
+        }
+      }
+
+      const userClaim = await User.updateOne(
+        { _id: currentUser._id, team: null },
+        { $set: { team: team._id } },
+        { session }
+      );
+      if (!userClaim.modifiedCount) {
+        throw Object.assign(new Error('You can only belong to one team'), { status: 409 });
+      }
+
+      team = await Team.findOneAndUpdate(
+        {
+          _id: team._id,
+          members: { $ne: currentUser._id },
+          $expr: { $lt: [{ $size: { $ifNull: ['$members', []] } }, MAX_TEAM_MEMBERS] }
+        },
+        { $addToSet: { members: currentUser._id } },
+        { new: true, session }
+      );
+      if (!team) {
+        throw Object.assign(new Error('This team is full or you are already a member'), { status: 409 });
+      }
+      joinedTeam = team;
+    });
+    await session.endSession();
+    await invalidateTeamCaches(joinedTeam._id);
+    return res.json({ success: true, data: joinedTeam });
+  } catch (error) {
+    await session.endSession();
+    return sendTeamError(res, error, 'Error joining team');
+  }
+});
+
+router.put('/my/team/password', protect, async (req, res) => {
+  try {
+    const password = String(req.body.password || '');
+    if (password.length < 8 || Buffer.byteLength(password, 'utf8') > 72) {
+      return res.status(400).json({ success: false, message: 'Team password must be at least 8 characters and no more than 72 bytes' });
+    }
+    const user = await User.findById(req.user._id).select('team');
+    const team = user?.team ? await Team.findById(user.team) : null;
+    if (!team) return res.status(404).json({ success: false, message: 'You are not in a team' });
+    if (!isTeamCaptain(team, req.user._id)) {
+      return res.status(403).json({ success: false, message: 'Only the captain can change the team password' });
+    }
+    team.passwordHash = await bcrypt.hash(password, 12);
+    await team.save();
+    return res.json({ success: true, message: 'Team password updated' });
+  } catch (error) {
+    console.error('Error changing team password:', error);
+    return res.status(500).json({ success: false, message: 'Error changing team password' });
+  }
+});
+
+router.post('/my/team/invite', protect, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('team');
+    const team = user?.team ? await Team.findById(user.team).select('+inviteCode') : null;
+    if (!team) return res.status(404).json({ success: false, message: 'You are not in a team' });
+    if (!isTeamCaptain(team, req.user._id)) {
+      return res.status(403).json({ success: false, message: 'Only the captain can create an invite link' });
+    }
+    if (!team.inviteCode) {
+      team.inviteCode = require('crypto').randomBytes(24).toString('base64url');
+      await team.save();
+    }
+    return res.json({ success: true, inviteCode: team.inviteCode });
+  } catch (error) {
+    console.error('Error creating team invite:', error);
+    return res.status(500).json({ success: false, message: 'Error creating invite link' });
+  }
+});
+
+router.delete('/my/team/membership', protect, async (req, res) => {
+  const mongoose = require('mongoose');
+  const session = await mongoose.startSession();
+  try {
+    let teamId;
+    await session.withTransaction(async () => {
+      const user = await User.findById(req.user._id).session(session);
+      if (!user?.team) throw Object.assign(new Error('You are not in a team'), { status: 404 });
+      const team = await Team.findById(user.team).session(session);
+      if (!team) throw Object.assign(new Error('Team not found'), { status: 404 });
+      if (isTeamCaptain(team, req.user._id)) {
+        throw Object.assign(new Error('The captain must disband the team instead of leaving'), { status: 403 });
+      }
+      team.members = team.members.filter(memberId => memberId.toString() !== req.user._id.toString());
+      await team.save({ session });
+      user.team = null;
+      await user.save({ session });
+      teamId = team._id;
+    });
+    await session.endSession();
+    await invalidateTeamCaches(teamId);
+    return res.json({ success: true, message: 'You left the team' });
+  } catch (error) {
+    await session.endSession();
+    return sendTeamError(res, error, 'Error leaving team');
+  }
+});
+
+router.delete('/my/team', protect, async (req, res) => {
+  const mongoose = require('mongoose');
+  const session = await mongoose.startSession();
+  try {
+    let teamId;
+    await session.withTransaction(async () => {
+      const user = await User.findById(req.user._id).session(session);
+      if (!user?.team) throw Object.assign(new Error('You are not in a team'), { status: 404 });
+      const team = await Team.findById(user.team).session(session);
+      if (!team) throw Object.assign(new Error('Team not found'), { status: 404 });
+      if (!isTeamCaptain(team, req.user._id)) {
+        throw Object.assign(new Error('Only the captain can disband the team'), { status: 403 });
+      }
+      await User.updateMany({ team: team._id }, { $unset: { team: 1 } }, { session });
+      await Team.deleteOne({ _id: team._id }, { session });
+      teamId = team._id;
+    });
+    await session.endSession();
+    await invalidateTeamCaches(teamId);
+    return res.json({ success: true, message: 'Team disbanded' });
+  } catch (error) {
+    await session.endSession();
+    return sendTeamError(res, error, 'Error disbanding team');
+  }
+});
 
 // @route   POST /api/teams
 // @desc    Create a new team (Admin only)
@@ -11,83 +273,80 @@ const { protect, authorize } = require('../middleware/auth');
 router.post('/', protect, authorize('admin'), async (req, res) => {
   const mongoose = require('mongoose');
   const session = await mongoose.startSession();
-  
   try {
-    const { name, description, members, captain, maxMembers, hidden, banned, verified } = req.body;
-    const MAX_TEAM_MEMBERS = maxMembers || parseInt(process.env.MAX_TEAM_MEMBERS) || 2;
+    const { name, description, members = [], captain, password, hidden, banned, verified } = req.body;
+    const normalizedName = String(name || '').trim();
+    const teamPassword = String(password || '');
+    const memberIds = Array.isArray(members) ? members.map(memberId => memberId.toString()) : [];
 
-    if (!name) {
-      return res.status(400).json({
-        success: false,
-        message: 'Team name is required'
-      });
+    if (!normalizedName || normalizedName.length > 100) {
+      throw Object.assign(new Error('Team name is required and must be at most 100 characters'), { status: 400 });
+    }
+    if (teamPassword.length < 8 || Buffer.byteLength(teamPassword, 'utf8') > 72) {
+      throw Object.assign(new Error('Team password must be at least 8 characters and no more than 72 bytes'), { status: 400 });
+    }
+    if (!memberIds.length || memberIds.length > MAX_TEAM_MEMBERS || new Set(memberIds).size !== memberIds.length) {
+      throw Object.assign(new Error(`Select between 1 and ${MAX_TEAM_MEMBERS} unique team members`), { status: 400 });
+    }
+    if (!captain || !memberIds.includes(captain.toString())) {
+      throw Object.assign(new Error('Captain must be a selected team member'), { status: 400 });
     }
 
-    if (members && members.length > MAX_TEAM_MEMBERS) {
-      return res.status(400).json({
-        success: false,
-        message: `A team can have maximum ${MAX_TEAM_MEMBERS} members`
-      });
-    }
-
+    const [passwordHash, nameKey] = await Promise.all([
+      bcrypt.hash(teamPassword, 12),
+      Promise.resolve(normalizedName.toLocaleLowerCase('en'))
+    ]);
     let team;
     await session.withTransaction(async () => {
-      // Validate member IDs exist and are valid users (inside transaction)
-      if (members && members.length > 0) {
-        const validMembers = await User.find({
-          _id: { $in: members },
-          role: 'user',
-          team: { $exists: false }
-        }).session(session);
+      const escapedName = normalizedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const existingTeam = await Team.findOne({
+        $or: [{ nameKey }, { name: { $regex: `^${escapedName}$`, $options: 'i' } }]
+      }).session(session);
+      if (existingTeam) throw Object.assign(new Error('A team with that name already exists'), { status: 409 });
 
-        if (validMembers.length !== members.length) {
-          throw new Error('One or more selected users are invalid or already in a team');
-        }
-
-        // Validate captain is in members list
-        if (captain && !members.includes(captain)) {
-          throw new Error('Captain must be a selected team member');
-        }
+      const validMembers = await User.find({
+        _id: { $in: memberIds }, role: 'user', team: null
+      }).select('_id').session(session);
+      if (validMembers.length !== memberIds.length) {
+        throw Object.assign(new Error('One or more selected users are invalid or already in a team'), { status: 409 });
       }
 
-      // Create team within transaction
-      const teamDoc = await Team.create([{
-        name,
+      const [createdTeam] = await Team.create([{
+        name: normalizedName,
+        nameKey,
+        passwordHash,
         description,
-        members: members || [],
-        captain: captain || null,
+        members: memberIds,
+        captain,
+        maxMembers: MAX_TEAM_MEMBERS,
         hidden: !!hidden,
         banned: !!banned,
         verified: !!verified,
         createdBy: req.user._id || req.user.id
       }], { session });
-      
-      team = teamDoc[0];
-
-      // Update users within transaction
-      if (members && members.length > 0) {
-        await User.updateMany(
-          { _id: { $in: members } },
-          { team: team._id },
-          { session }
-        );
+      const assignment = await User.updateMany(
+        { _id: { $in: memberIds }, team: null },
+        { $set: { team: createdTeam._id } },
+        { session }
+      );
+      if (assignment.matchedCount !== memberIds.length) {
+        throw Object.assign(new Error('A selected user joined another team while this team was being created'), { status: 409 });
       }
+      team = createdTeam;
     });
 
     await session.endSession();
-
     const populatedTeam = await team.populate('members createdBy captain');
-
-    res.status(201).json({
-      success: true,
-      data: populatedTeam
-    });
+    await invalidateTeamCaches(team._id);
+    return res.status(201).json({ success: true, data: populatedTeam });
   } catch (error) {
     await session.endSession();
     console.error('Team creation error:', error);
-    res.status(500).json({
+    res.status(error.status || (error.code === 11000 ? 409 : 500)).json({
       success: false,
-      message: process.env.NODE_ENV === 'development' ? error.message : 'Error creating team'
+      message: error.status || error.code === 11000 || process.env.NODE_ENV === 'development'
+        ? error.message || 'A team with that name already exists'
+        : 'Error creating team'
     });
   }
 });
@@ -106,7 +365,13 @@ router.get('/my/team', protect, async (req, res) => {
       });
     }
 
+    await Team.updateOne(
+      { _id: user.team },
+      { $addToSet: { members: req.user._id } }
+    );
+
     const team = await Team.findById(user.team)
+      .select('+inviteCode')
       .populate('members', 'username email points solvedChallenges')
       .populate('captain', 'username email points solvedChallenges')
       .populate('createdBy', 'username');
@@ -199,6 +464,7 @@ router.get('/:id', protect, async (req, res) => {
       : 'username points solvedChallenges personallySolvedChallenges unlockedHints';
     
     const team = await Team.findById(req.params.id)
+      .select('+inviteCode')
       .populate('members', memberFields)
       .populate('captain', captainFields)
       .populate('createdBy', 'username');
@@ -335,43 +601,10 @@ router.get('/:id', protect, async (req, res) => {
       unlockedHintsCount: m.unlockedHints.length
     })));
     
-    // Calculate team points from calculated member points
-    const memberPoints = updatedMembers.reduce((sum, member) => sum + (member.points || 0), 0);
-    
-    // Use cached team points calculation (same logic, just cached)
-    const { getTeamPoints } = require('../utils/teamPointsCache');
-    const teamPointsData = await getTeamPoints(team._id, memberIds);
-    
-    // Use cached calculation result
-    const calculatedPoints = teamPointsData.total;
-    
-    console.log('[Team Details] Points calculation:', {
-      memberPoints: teamPointsData.memberPoints,
-      awardPoints: teamPointsData.awardPoints,
-      total: calculatedPoints,
-      cached: true,
-      cacheAge: Math.round((Date.now() - teamPointsData.calculatedAt) / 1000)
-    });
-
-    // Calculate team rank
-    const teamsWithHigherPoints = await Team.countDocuments({
-      _id: { $ne: team._id }
-    });
-    
-    // Get all teams to calculate rank properly (include awards in calculations)
-    const allTeams = await Team.find().populate('members', 'points').lean();
-    const teamsWithPoints = await Promise.all(allTeams.map(async (t) => {
-      const tMemberPoints = t.members.reduce((sum, m) => sum + (m.points || 0), 0);
-      const tAwards = await Award.find({ team: t._id }).select('value').lean();
-      const tAwardPoints = tAwards.reduce((sum, a) => sum + (a.value || 0), 0);
-      return {
-        _id: t._id,
-        totalPoints: Math.max(0, tMemberPoints + tAwardPoints)
-      };
-    }));
-    teamsWithPoints.sort((a, b) => b.totalPoints - a.totalPoints);
-    
-    const rank = teamsWithPoints.findIndex(t => t._id.toString() === team._id.toString()) + 1;
+    const standings = await aggregateTeamStandings(isAdmin);
+    const teamStanding = standings.find(row => row.account_id === team._id.toString());
+    const calculatedPoints = teamStanding?.score || 0;
+    const rank = teamStanding?.pos || 0;
     
     // Calculate total solved challenges (unique challenges across team from actual submissions)
     const allSolvedChallenges = new Set();
@@ -393,6 +626,9 @@ router.get('/:id', protect, async (req, res) => {
       totalPoints: calculatedPoints,
       points: calculatedPoints,
       rank: rank,
+      inviteCode: isTeamCaptain(team, req.user._id) ? team.inviteCode : undefined,
+      maxMembers: MAX_TEAM_MEMBERS,
+      isCaptain: isTeamCaptain(team, req.user._id),
       solvedChallenges: allSolvedChallenges.size
     };
 
@@ -420,80 +656,85 @@ router.get('/:id', protect, async (req, res) => {
 // @desc    Update team (Admin only)
 // @access  Private/Admin
 router.put('/:id', protect, authorize('admin'), async (req, res) => {
+  const mongoose = require('mongoose');
+  const session = await mongoose.startSession();
   try {
     const { name, description, members, hidden, banned, verified, captain } = req.body;
 
-    const MAX_TEAM_MEMBERS = parseInt(process.env.MAX_TEAM_MEMBERS) || 2;
-    if (members && members.length > MAX_TEAM_MEMBERS) {
+    if (members !== undefined && (!Array.isArray(members) || members.length > MAX_TEAM_MEMBERS || members.length === 0)) {
+      await session.endSession();
       return res.status(400).json({
         success: false,
-        message: `A team can have maximum ${MAX_TEAM_MEMBERS} members`
+        message: `A team must have between 1 and ${MAX_TEAM_MEMBERS} members`
       });
     }
 
-    let team = await Team.findById(req.params.id);
+    let team;
+    await session.withTransaction(async () => {
+      team = await Team.findById(req.params.id).session(session);
+      if (!team) throw Object.assign(new Error('Team not found'), { status: 404 });
 
-    if (!team) {
-      return res.status(404).json({
-        success: false,
-        message: 'Team not found'
-      });
-    }
-
-    const oldMembers = team.members || [];
-
-    if (name) team.name = name;
-    if (description) team.description = description;
-    if (hidden !== undefined) team.hidden = !!hidden;
-    if (verified !== undefined) team.verified = !!verified;
-    if (banned !== undefined) {
-      team.banned = !!banned;
-      team.isBlocked = !!banned;
-      team.blockedReason = banned ? 'Banned by admin' : null;
-      team.blockedAt = banned ? new Date() : null;
-    }
-
-    if (captain !== undefined) {
-      if (captain === null) {
-        team.captain = null;
-      } else {
-        const captainId = captain.toString();
-        const captainInMembers = (members || team.members).some(m => m.toString() === captainId);
-        if (!captainInMembers) {
-          return res.status(400).json({
-            success: false,
-            message: 'Captain must be in team members'
-          });
-        }
-        team.captain = captain;
+      const nextMembers = members === undefined ? team.members.map(memberId => memberId.toString()) : members.map(memberId => memberId.toString());
+      if (new Set(nextMembers).size !== nextMembers.length) {
+        throw Object.assign(new Error('Team members must be unique'), { status: 400 });
       }
-    }
+      const nextCaptain = captain === undefined ? team.captain?.toString() : captain?.toString();
+      if (!nextCaptain || !nextMembers.includes(nextCaptain)) {
+        throw Object.assign(new Error('Captain must be a team member'), { status: 400 });
+      }
 
-    if (members) {
-      team.members = members;
+      if (members !== undefined) {
+        const availableMembers = await User.find({
+          _id: { $in: nextMembers },
+          $or: [{ team: null }, { team: team._id }]
+        }).select('_id').session(session);
+        if (availableMembers.length !== nextMembers.length) {
+          throw Object.assign(new Error('A selected user is already in another team or does not exist'), { status: 409 });
+        }
+        await User.updateMany(
+          { team: team._id, _id: { $nin: nextMembers } },
+          { $set: { team: null } },
+          { session }
+        );
+        const assignment = await User.updateMany(
+          { _id: { $in: nextMembers }, $or: [{ team: null }, { team: team._id }] },
+          { $set: { team: team._id } },
+          { session }
+        );
+        if (assignment.matchedCount !== nextMembers.length) {
+          throw Object.assign(new Error('A selected user joined another team while this update was being saved'), { status: 409 });
+        }
+        team.members = nextMembers;
+      }
 
-      await User.updateMany(
-        { _id: { $in: oldMembers } },
-        { $unset: { team: 1 } }
-      );
-
-      await User.updateMany(
-        { _id: { $in: members } },
-        { team: team._id }
-      );
-    }
-
-    team = await team.save();
+      if (name !== undefined) team.name = String(name).trim();
+      if (description !== undefined) team.description = description;
+      team.captain = nextCaptain;
+      if (hidden !== undefined) team.hidden = !!hidden;
+      if (verified !== undefined) team.verified = !!verified;
+      if (banned !== undefined) {
+        team.banned = !!banned;
+        team.isBlocked = !!banned;
+        team.blockedReason = banned ? 'Banned by admin' : null;
+        team.blockedAt = banned ? new Date() : null;
+      }
+      await team.save({ session });
+    });
+    await session.endSession();
     await team.populate('members createdBy');
+    await invalidateTeamCaches(team._id);
 
     res.json({
       success: true,
       data: team
     });
   } catch (error) {
-    res.status(500).json({
+    await session.endSession();
+    res.status(error.status || (error.code === 11000 ? 409 : 500)).json({
       success: false,
-      message: 'Error updating team'
+      message: error.status || error.code === 11000 || process.env.NODE_ENV === 'development'
+        ? error.message || 'A team with that name already exists'
+        : 'Error updating team'
     });
   }
 });
@@ -518,6 +759,7 @@ router.delete('/:id', protect, authorize('admin'), async (req, res) => {
     );
 
     await Team.findByIdAndDelete(req.params.id);
+    await invalidateTeamCaches(req.params.id);
 
     res.json({
       success: true,
@@ -535,55 +777,44 @@ router.delete('/:id', protect, authorize('admin'), async (req, res) => {
 // @desc    Add member to team (Admin only)
 // @access  Private/Admin
 router.post('/:id/members/:userId', protect, authorize('admin'), async (req, res) => {
+  const mongoose = require('mongoose');
+  const session = await mongoose.startSession();
   try {
-    const team = await Team.findById(req.params.id);
-
-    if (!team) {
-      return res.status(404).json({
-        success: false,
-        message: 'Team not found'
-      });
-    }
-
-    if (team.members.length >= 2) {
-      return res.status(400).json({
-        success: false,
-        message: 'Team already has 2 members'
-      });
-    }
-
-    const user = await User.findById(req.params.userId);
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-
-    if (team.members.includes(req.params.userId)) {
-      return res.status(400).json({
-        success: false,
-        message: 'User is already a member of this team'
-      });
-    }
-
-    team.members.push(req.params.userId);
-    await team.save();
-
-    user.team = team._id;
-    await user.save();
-
+    let team;
+    await session.withTransaction(async () => {
+      const currentTeam = await Team.findById(req.params.id).session(session);
+      if (!currentTeam) throw Object.assign(new Error('Team not found'), { status: 404 });
+      const user = await User.findOne({ _id: req.params.userId, team: null }).session(session);
+      if (!user) throw Object.assign(new Error('User not found or already in a team'), { status: 409 });
+      const updatedTeam = await Team.findOneAndUpdate(
+        {
+          _id: currentTeam._id,
+          members: { $ne: user._id },
+          $expr: { $lt: [{ $size: { $ifNull: ['$members', []] } }, MAX_TEAM_MEMBERS] }
+        },
+        { $addToSet: { members: user._id } },
+        { new: true, session }
+      );
+      if (!updatedTeam) throw Object.assign(new Error('Team is full or user is already a member'), { status: 409 });
+      const assigned = await User.updateOne({ _id: user._id, team: null }, { $set: { team: currentTeam._id } }, { session });
+      if (!assigned.modifiedCount) throw Object.assign(new Error('User is already in a team'), { status: 409 });
+      team = updatedTeam;
+    });
+    await session.endSession();
     await team.populate('members createdBy');
+    await invalidateTeamCaches(team._id);
 
     res.json({
       success: true,
       data: team
     });
   } catch (error) {
-    res.status(500).json({
+    await session.endSession();
+    res.status(error.status || 500).json({
       success: false,
-      message: 'Error adding member to team'
+      message: error.status || process.env.NODE_ENV === 'development'
+        ? error.message
+        : 'Error adding member to team'
     });
   }
 });
@@ -592,31 +823,41 @@ router.post('/:id/members/:userId', protect, authorize('admin'), async (req, res
 // @desc    Remove member from team (Admin only)
 // @access  Private/Admin
 router.delete('/:id/members/:userId', protect, authorize('admin'), async (req, res) => {
+  const mongoose = require('mongoose');
+  const session = await mongoose.startSession();
   try {
-    const team = await Team.findById(req.params.id);
-
-    if (!team) {
-      return res.status(404).json({
-        success: false,
-        message: 'Team not found'
-      });
-    }
-
-    team.members = team.members.filter(id => id.toString() !== req.params.userId);
-    await team.save();
-
-    await User.findByIdAndUpdate(req.params.userId, { $unset: { team: 1 } });
-
+    let team;
+    await session.withTransaction(async () => {
+      team = await Team.findById(req.params.id).session(session);
+      if (!team) throw Object.assign(new Error('Team not found'), { status: 404 });
+      if (!team.members.some(memberId => memberId.toString() === req.params.userId)) {
+        throw Object.assign(new Error('User is not a member of this team'), { status: 404 });
+      }
+      if (isTeamCaptain(team, req.params.userId)) {
+        throw Object.assign(new Error('Assign a new captain before removing the current captain'), { status: 409 });
+      }
+      team.members = team.members.filter(memberId => memberId.toString() !== req.params.userId);
+      await team.save({ session });
+      const result = await User.updateOne(
+        { _id: req.params.userId, team: team._id },
+        { $set: { team: null } },
+        { session }
+      );
+      if (!result.matchedCount) throw Object.assign(new Error('User is no longer assigned to this team'), { status: 409 });
+    });
+    await session.endSession();
     await team.populate('members createdBy');
+    await invalidateTeamCaches(team._id);
 
     res.json({
       success: true,
       data: team
     });
   } catch (error) {
-    res.status(500).json({
+    await session.endSession();
+    res.status(error.status || 500).json({
       success: false,
-      message: 'Error removing member from team'
+      message: error.status ? error.message : 'Error removing member from team'
     });
   }
 });

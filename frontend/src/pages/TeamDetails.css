@@ -94,6 +94,78 @@
   padding: 30px 24px 64px;
 }
 
+.htb-team-controls {
+  display: grid;
+  gap: 0.8rem;
+  margin-bottom: 1.25rem;
+  padding: 1rem;
+  border: 1px solid rgba(95,148,79, 0.2);
+  border-radius: 8px;
+  background: rgba(10,14,26, 0.55);
+}
+
+.htb-team-action-row,
+.htb-team-invite-row,
+.htb-team-password-form {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.htb-team-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 40px;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid rgba(95,148,79, 0.35);
+  border-radius: 6px;
+  background: rgba(29,57,36, 0.4);
+  color: #e7f0dc;
+  cursor: pointer;
+}
+
+.htb-team-action-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.htb-team-action-danger {
+  border-color: rgba(248,113,113, 0.4);
+  background: rgba(127,29,29, 0.2);
+  color: #fca5a5;
+}
+
+.htb-team-invite-row input,
+.htb-team-password-form input {
+  flex: 1 1 240px;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid rgba(95,148,79, 0.25);
+  border-radius: 6px;
+  background: rgba(10,14,26, 0.75);
+  color: #f8fafc;
+}
+
+.htb-team-password-form label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #d3dae2;
+}
+
+.htb-team-action-message {
+  margin: 0;
+  color: #a9ca67;
+}
+
+.htb-team-action-error {
+  color: #fca5a5;
+}
+
 /* Stats */
 .htb-team-stats,
 .htb-user-stats {

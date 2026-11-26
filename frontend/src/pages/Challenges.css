@@ -196,9 +196,23 @@
   text-transform: uppercase;
 }
 
+.category-filter-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  margin-bottom: 0.7rem;
+}
+
+.category-filter-heading .filter-label {
+  margin: 0;
+}
+
 .category-manage-link {
   display: inline-flex;
-  margin: 0 0 0.7rem;
+  align-items: center;
+  margin: 0;
   color: #a9ca67;
   font-size: 0.85rem;
   text-decoration: none;

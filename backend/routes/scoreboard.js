@@ -9,6 +9,7 @@ const Submission = require('../models/Submission');
 const Award = require('../models/Award');
 const Challenge = require('../models/Challenge');
 const EventState = require('../models/EventState');
+const { aggregateTeamStandings: getSharedTeamStandings } = require('../utils/teamStandings');
 
 const redisClient = getRedisClient();
 
@@ -322,146 +323,7 @@ async function aggregateUserStandings(isAdmin, freezeTime, limit = null) {
  * Helper: Aggregate Team Standings (CTFd-style with dynamic scoring)
  */
 async function aggregateTeamStandings(isAdmin, freezeTime, limit = null) {
-  const matchStage = {
-    isCorrect: true
-  };
-  if (freezeTime) {
-    matchStage.submittedAt = { $lt: new Date(freezeTime) };
-  }
-
-  // CTFd-style: JOIN Submissions with Challenges to get current values
-  const teamSolves = await Submission.aggregate([
-    { $match: matchStage },
-    {
-      $lookup: {
-        from: 'challenges',
-        localField: 'challenge',
-        foreignField: '_id',
-        as: 'challengeData'
-      }
-    },
-    { $unwind: '$challengeData' },
-    { $match: { 'challengeData.points': { $ne: 0 } } },
-    {
-      $lookup: {
-        from: 'users',
-        localField: 'user',
-        foreignField: '_id',
-        as: 'userInfo'
-      }
-    },
-    { $unwind: '$userInfo' },
-    {
-      $match: {
-        'userInfo.team': { $exists: true, $ne: null },
-        // Filter banned/hidden users if strict, but usually team status matters
-      }
-    },
-    {
-      $group: {
-        _id: '$userInfo.team',
-        score: { $sum: '$challengeData.points' }, // Sum current challenge values
-        lastSolve: { $max: '$submittedAt' }
-      }
-    }
-  ]);
-
-  // Aggregate Awards (Team Awards + User Awards in Team?)
-  // CTFd: Awards given to USER count for TEAM? Yes usually.
-  // Awards given to TEAM count for TEAM.
-
-  // Team Specific Awards
-  const teamAwardMatch = { value: { $ne: 0 }, team: { $exists: true, $ne: null } };
-  if (freezeTime) teamAwardMatch.date = { $lt: new Date(freezeTime) };
-
-  const teamDirectAwards = await Award.aggregate([
-    { $match: teamAwardMatch },
-    {
-      $group: {
-        _id: '$team',
-        score: { $sum: '$value' },
-        lastAward: { $max: '$date' }
-      }
-    }
-  ]);
-
-  // User Awards (mapped to team)
-  // NOTE: This might double count if logic isn't careful, but Award model enforces either user OR team.
-  // So we just need awards where user -> team.
-  const userAwardMatch = { value: { $ne: 0 }, user: { $exists: true, $ne: null } };
-  if (freezeTime) userAwardMatch.date = { $lt: new Date(freezeTime) };
-
-  const userAwardsInTeams = await Award.aggregate([
-    { $match: userAwardMatch },
-    {
-      $lookup: {
-        from: 'users',
-        localField: 'user',
-        foreignField: '_id',
-        as: 'userInfo'
-      }
-    },
-    { $unwind: '$userInfo' },
-    { $match: { 'userInfo.team': { $exists: true, $ne: null } } },
-    {
-      $group: {
-        _id: '$userInfo.team',
-        score: { $sum: '$value' },
-        lastAward: { $max: '$date' }
-      }
-    }
-  ]);
-
-  // Merge Everything
-  const teamMap = new Map();
-
-  const merge = (id, score, date) => {
-    const sid = id.toString();
-    const current = teamMap.get(sid) || { score: 0, lastDate: new Date(0) };
-    current.score += score;
-    if (new Date(date) > current.lastDate) {
-      current.lastDate = new Date(date);
-    }
-    teamMap.set(sid, current);
-  };
-
-  teamSolves.forEach(t => merge(t._id, t.score, t.lastSolve));
-  teamDirectAwards.forEach(t => merge(t._id, t.score, t.lastAward));
-  userAwardsInTeams.forEach(t => merge(t._id, t.score, t.lastAward));
-
-  // Fetch Team Metadata & Filter
-  const teamQuery = { banned: false }; // Base filter
-  if (!isAdmin) {
-    teamQuery.hidden = { $ne: true };
-  }
-
-  const teams = await Team.find(teamQuery).select('_id name hidden banned').lean();
-
-  const results = [];
-  for (const team of teams) {
-    const tid = team._id.toString();
-    const data = teamMap.get(tid);
-
-    if (data && data.score > 0) {
-      results.push({
-        account_id: tid,
-        name: team.name, // Fixed: teamName -> name
-        score: data.score,
-        date: data.lastDate,
-        account_url: `/teams/${tid}`
-      });
-    }
-  }
-
-  // Sort
-  results.sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
-    if (a.date.getTime() !== b.date.getTime()) return a.date - b.date;
-    return a.account_id.localeCompare(b.account_id);
-  });
-
-  if (limit) return results.slice(0, limit);
-  return results.map((r, i) => ({ ...r, pos: i + 1 }));
+  return getSharedTeamStandings(isAdmin, freezeTime, limit);
 }
 
 /**
