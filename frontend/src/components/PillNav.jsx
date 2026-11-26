@@ -13,7 +13,7 @@ function PillNav({
   pillColor = '#ffffff',
   pillTextColor = '#000000',
   hoveredPillTextColor = '#ffffff',
-  brandName = 'CTFQuest',
+  brandName = 'CloverCTF',
   brandAccent = '',
   mobileExtraContent,
 }) {

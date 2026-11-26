@@ -44,6 +44,20 @@ const isValidObjectId = (id) => {
   return id && /^[0-9a-fA-F]{24}$/.test(id);
 };
 
+const filterAdminSolves = async (challenges) => {
+  const challengeList = Array.isArray(challenges) ? challenges : [challenges];
+  const solverIds = [...new Set(challengeList.flatMap(challenge => challenge?.solvedBy || []).map(id => id.toString()))];
+  if (!solverIds.length) return;
+
+  const users = await User.find({ _id: { $in: solverIds }, role: 'user' }).select('_id').lean();
+  const validSolverIds = new Set(users.map(user => user._id.toString()));
+  challengeList.forEach(challenge => {
+    if (challenge) {
+      challenge.solvedBy = (challenge.solvedBy || []).filter(id => validSolverIds.has(id.toString()));
+    }
+  });
+};
+
 // @route   GET /api/challenges
 // @desc    Get all challenges with pagination (filtered by visibility for non-admin users)
 // @access  Private (Authentication required - Security fix for Penligent HIGH vulnerability)
@@ -75,6 +89,8 @@ router.get('/', protect, sanitizeInput, async (req, res) => {
       .skip(skip)
       .sort({ _id: -1 })
       .lean(); // Use lean for better performance
+
+    await filterAdminSolves(challenges);
 
     // Add current dynamic value and solved status to each challenge
     const enrichedChallenges = challenges.map(challenge => {
@@ -138,12 +154,14 @@ router.get('/:id/solves', protect, async (req, res) => {
       });
     }
 
+    await filterAdminSolves(challenge);
+
     // Get submissions for this challenge
     const submissions = await Submission.find({
       challenge: req.params.id,
       isCorrect: true
     })
-      .populate('user', 'username team')
+      .populate('user', 'username team role')
       .populate({
         path: 'user',
         populate: {
@@ -156,7 +174,7 @@ router.get('/:id/solves', protect, async (req, res) => {
       .lean();
 
     // Format the response
-    const solves = submissions.map(sub => ({
+    const solves = submissions.filter(sub => sub.user?.role === 'user').map(sub => ({
       username: sub.user?.username || 'Unknown',
       team: sub.user?.team?.name || 'No Team',
       solvedAt: sub.submittedAt
@@ -202,6 +220,8 @@ router.get('/:id', async (req, res) => {
         message: 'Challenge not found'
       });
     }
+
+    await filterAdminSolves(challenge);
 
     // Check visibility and get user context - only admins can access hidden challenges
     const token = req.cookies.token || req.cookies.access_token || (req.headers.authorization && req.headers.authorization.split(' ')[1]);
@@ -554,6 +574,16 @@ router.post('/:id/submit', protect, sanitizeInput, checkEventNotEnded, async (re
       return res.status(400).json({
         success: false,
         message: 'Incorrect flag'
+      });
+    }
+
+    if (user.role === 'admin') {
+      return res.json({
+        success: true,
+        message: 'correct',
+        adminSolve: true,
+        points: 0,
+        timestamp: new Date().toISOString()
       });
     }
 

@@ -35,7 +35,7 @@ async function aggregateTeamStandings(isAdmin = false, freezeTime = null, limit 
       }
     },
     { $unwind: '$userInfo' },
-    { $match: { 'userInfo.team': { $exists: true, $ne: null } } },
+    { $match: { 'userInfo.role': 'user', 'userInfo.team': { $exists: true, $ne: null } } },
     {
       $group: {
         _id: '$userInfo.team',

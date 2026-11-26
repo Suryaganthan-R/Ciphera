@@ -12,6 +12,7 @@ function MyTeam() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [teams, setTeams] = useState([]);
+  const [teamSearch, setTeamSearch] = useState('');
   const [createForm, setCreateForm] = useState({ name: '', password: '' });
   const [joinForm, setJoinForm] = useState({ teamId: '', password: '', inviteCode: '' });
   const { isAuthenticated, loading } = useContext(AuthContext);
@@ -102,6 +103,10 @@ function MyTeam() {
     }
   };
 
+  const filteredTeams = teams.filter(team =>
+    team.name.toLowerCase().includes(teamSearch.trim().toLowerCase())
+  );
+
   if (loading || pageLoading) {
     return (
       <div className="my-team-container">
@@ -151,21 +156,47 @@ function MyTeam() {
 
           <form className="my-team-form" onSubmit={handleJoin}>
             <h2><LogIn size={19} /> Join a team</h2>
-            <label htmlFor="join-team">Available teams</label>
-            <select
-              id="join-team"
-              value={joinForm.teamId}
-              onChange={event => setJoinForm(current => ({ ...current, teamId: event.target.value }))}
+            <label htmlFor="join-team-search">Search teams</label>
+            <input
+              id="join-team-search"
+              type="search"
+              value={teamSearch}
+              onChange={event => {
+                setTeamSearch(event.target.value);
+                setJoinForm(current => ({ ...current, teamId: '' }));
+              }}
+              placeholder="Enter a team name"
+              autoComplete="off"
               disabled={Boolean(joinForm.inviteCode)}
-              required={!joinForm.inviteCode}
-            >
-              <option value="">Select a team</option>
-              {teams.map(team => (
-                <option key={team._id} value={team._id} disabled={team.memberCount >= team.maxMembers}>
-                  {team.name} ({team.memberCount}/{team.maxMembers})
-                </option>
-              ))}
-            </select>
+              required={!joinForm.inviteCode && !joinForm.teamId}
+            />
+            <div className="my-team-search-results" role="listbox" aria-label="Available teams">
+              {joinForm.teamId && !teamSearch ? (
+                <div className="my-team-selected-team">
+                  Selected: {teams.find(team => team._id === joinForm.teamId)?.name}
+                  <button type="button" onClick={() => setJoinForm(current => ({ ...current, teamId: '' }))}>
+                    Change
+                  </button>
+                </div>
+              ) : filteredTeams.length ? filteredTeams.map(team => (
+                <button
+                  key={team._id}
+                  type="button"
+                  role="option"
+                  aria-selected={joinForm.teamId === team._id}
+                  disabled={Boolean(joinForm.inviteCode) || team.memberCount >= team.maxMembers}
+                  onClick={() => {
+                    setJoinForm(current => ({ ...current, teamId: team._id }));
+                    setTeamSearch('');
+                  }}
+                >
+                  <span>{team.name}</span>
+                  <small>{team.memberCount}/{team.maxMembers} members</small>
+                </button>
+              )) : (
+                <p>{teams.length ? 'No matching teams found.' : 'No teams are available to join.'}</p>
+              )}
+            </div>
             <label htmlFor="join-team-password">Team password</label>
             <input
               id="join-team-password"

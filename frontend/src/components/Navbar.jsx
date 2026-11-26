@@ -96,7 +96,7 @@ function Navbar() {
   const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
   const platformLogo = cloverKingdomLogo;
   const brandAccent = useMemo(() => {
-    const currentName = eventName || 'Clover CTF';
+    const currentName = eventName || 'CloverCTF';
     const lowered = currentName.toLowerCase();
 
     if (lowered.endsWith('quest')) {
@@ -201,7 +201,7 @@ function Navbar() {
       <div className="cyber-navbar-container">
         <PillNav
           logo={platformLogo}
-          logoAlt={`${eventName || 'Clover CTF'} logo`}
+          logoAlt={`${eventName || 'CloverCTF'} logo`}
           items={primaryNavItems}
           activeHref={location.pathname}
           className="cyber-navbar-pill"
@@ -211,7 +211,7 @@ function Navbar() {
           hoveredPillTextColor="#ffffff"
           pillTextColor="#000000"
           theme="light"
-          brandName={eventName || 'Clover CTF'}
+          brandName={eventName || 'CloverCTF'}
           brandAccent={brandAccent}
           initialLoadAnimation={false}
           mobileExtraContent={renderMobileMenuExtras}

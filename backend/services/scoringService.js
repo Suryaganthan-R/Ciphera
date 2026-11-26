@@ -70,14 +70,14 @@ function calculateChallengeValue(challenge, solveCount = null) {
 async function getValidSolveCount(challengeId) {
   const challenge = await Challenge.findById(challengeId).populate({
     path: 'solvedBy',
-    select: 'hidden banned'
+    select: 'hidden banned role'
   });
 
   if (!challenge) return 0;
 
   // Count only non-hidden, non-banned users
   const validSolves = challenge.solvedBy?.filter(user =>
-    !user.hidden && !user.banned
+    user.role === 'user' && !user.hidden && !user.banned
   ).length || 0;
 
   return validSolves;

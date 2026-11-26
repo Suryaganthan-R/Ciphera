@@ -150,7 +150,7 @@ const getOrCreateConfiguration = async () => {
     {
       $setOnInsert: {
         key: CONFIG_KEY,
-        eventName: process.env.EVENT_NAME || 'CTFQuest',
+        eventName: process.env.EVENT_NAME || 'CloverCTF',
         eventDescription: 'Capture The Flag platform',
         logoUrl: '',
         visibility: {
@@ -404,7 +404,7 @@ router.put('/visibility', protect, authorize('admin'), async (req, res) => {
         },
         $setOnInsert: {
           key: CONFIG_KEY,
-          eventName: process.env.EVENT_NAME || 'CTFQuest',
+          eventName: process.env.EVENT_NAME || 'CloverCTF',
           eventDescription: 'Capture The Flag platform',
           logoUrl: ''
         }

@@ -133,7 +133,7 @@ const SECURITY_CONFIG = {
   // Two-Factor Authentication
   TWO_FACTOR: {
     ENABLED: false, // Can be enabled later
-    ISSUER: 'CTFQuest',
+    ISSUER: 'CloverCTF',
     WINDOW: 2, // Allow 2 time steps
     STEP: 30 // 30 seconds
   }

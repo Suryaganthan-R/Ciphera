@@ -22,7 +22,7 @@ export default function Home() {
     AuthContext as React.Context<{ isAuthenticated: boolean }>
   );
   const { eventName } = useSiteConfig();
-  const platformName = eventName || 'Clover CTF';
+  const platformName = eventName || 'CloverCTF';
 
   const handleStart = () => {
     if (isAuthenticated) {
@@ -59,7 +59,7 @@ export default function Home() {
               <div className="h-10 w-10 overflow-hidden rounded-full border border-[#4f9b50]/30">
                 <img
                   src={heroImage}
-                  alt="Clover CTF emblem"
+                  alt="CloverCTF emblem"
                   className="h-full w-full object-cover"
                 />
               </div>
@@ -151,7 +151,7 @@ export default function Home() {
                 <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(79,155,80,0.08)_0%,rgba(0,0,0,0)_55%)]" />
                 <img
                   src={heroImage}
-                  alt="Clover CTF arena artwork"
+                  alt="CloverCTF arena artwork"
                   className="h-full w-full rounded-[40px] object-cover"
                 />
               </div>

@@ -335,7 +335,7 @@ async function getSolveHistory(accountId, mode, freezeTime) {
 
   if (isTeam) {
     // Team solves are represented by member solves mapped to team account_id
-    const members = await User.find({ team: accountId }).select('_id team').lean();
+    const members = await User.find({ team: accountId, role: 'user' }).select('_id team').lean();
     const memberIds = members.map((m) => m._id);
 
     const solveQuery = {
