@@ -185,6 +185,29 @@ exports.checkEventNotEnded = async (req, res, next) => {
 };
 
 /**
+ * Players cannot create, join, leave or disband teams once the event has started.
+ * Admin routes do not use this. Reads the database so a stale cache cannot unlock teams.
+ */
+exports.checkTeamChangesAllowed = async (req, res, next) => {
+  try {
+    const stored = await EventState.getEventState();
+    if (deriveState(stored).status !== 'not_started') {
+      return res.status(403).json({
+        success: false,
+        message: 'Teams are locked because the event has started. Ask an admin to make this change.'
+      });
+    }
+    next();
+  } catch (error) {
+    console.error('[EventState] Error in checkTeamChangesAllowed:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error checking event state'
+    });
+  }
+};
+
+/**
  * Helper function to check event state (for use in route handlers)
  * @returns {Promise<Object>} Event state object
  */

@@ -8,7 +8,7 @@ const User = require('../models/User');
 const Challenge = require('../models/Challenge');
 const Submission = require('../models/Submission');
 const scoringService = require('./scoringService');
-const { getTeamRawScore, getUserRawScore } = require('../utils/teamScore');
+const { getTeamRawScore, getTeamSolveQuery, refreshUserPoints } = require('../utils/teamScore');
 const { listUnlockedHints } = require('../utils/unlockedHints');
 const { invalidateTeamPoints } = require('../utils/teamPointsCache');
 const { getRedisClient, clearScoreboardCache } = require('../utils/redis');
@@ -27,8 +27,7 @@ async function getTeamScoreDetails(teamId) {
   if (!team) throw httpError(404, 'Team not found');
 
   const members = await User.find({ team: team._id }).select('username role').sort({ username: 1 }).lean();
-  const playerIds = members.filter(member => member.role === 'user').map(member => member._id);
-  const submissions = await Submission.find({ user: { $in: playerIds }, isCorrect: true })
+  const submissions = await Submission.find(await getTeamSolveQuery(team._id))
     .select('user challenge submittedAt submittedFlag')
     .sort({ submittedAt: 1 })
     .lean();
@@ -36,7 +35,9 @@ async function getTeamScoreDetails(teamId) {
   const hints = await listUnlockedHints({ team: team._id });
   const rawScore = await getTeamRawScore(team._id);
 
-  const usernames = new Map(members.map(member => [String(member._id), member.username]));
+  // Solvers may have left the team since
+  const solvers = await User.find({ _id: { $in: submissions.map(item => item.user) } }).select('username').lean();
+  const usernames = new Map(solvers.map(user => [String(user._id), user.username]));
   const solved = [];
   const unsolved = [];
   const memberTotals = new Map();
@@ -55,13 +56,12 @@ async function getTeamScoreDetails(teamId) {
     if (!solves.length) {
       unsolved.push({ ...summary, points: challenge.points });
     }
-    // A challenge can stay on the team list after its solver leaves. It scores nothing
-    // but still blocks the team from solving it, so the admin must be able to clear it.
+    // Also list stale entries on the team record so the admin can clear them.
     if (solves.length || containsId(team.solvedChallenges, challenge._id)) {
       solved.push({
         ...summary,
         points: challenge.points * solves.length,
-        solvedBy: solves.map(item => usernames.get(String(item.user))),
+        solvedBy: solves.map(item => usernames.get(String(item.user)) || 'Deleted user'),
         solvedAt: solves[0]?.submittedAt || null,
         addedByAdmin: solves.some(item => item.submittedFlag === ADMIN_SOLVE_MARKER)
       });
@@ -97,10 +97,7 @@ async function refreshAfterChange(teamId, challengeId, memberIds) {
     console.error('[TeamSolve] Could not update challenge value:', error.message);
   }
 
-  for (const memberId of memberIds) {
-    const score = await getUserRawScore(memberId);
-    await User.updateOne({ _id: memberId }, { $set: { points: Math.max(0, score) } });
-  }
+  await refreshUserPoints(memberIds);
 
   await invalidateTeamPoints(teamId);
   await clearScoreboardCache();
@@ -133,36 +130,53 @@ async function markSolved(teamId, challengeId, { userId, ipAddress } = {}) {
 
       const members = await User.find({ team: team._id }).select('_id role').session(session).lean();
       const players = members.filter(member => member.role === 'user');
+      const existing = await Submission.exists({
+        ...await getTeamSolveQuery(team._id, session),
+        challenge: challenge._id
+      }).session(session);
+      if (existing) throw httpError(409, 'This team has already solved that challenge');
+
+      // A player has one solve per challenge, so prefer someone who has none yet.
+      const ownSolves = await Submission.find({
+        user: { $in: players.map(player => player._id) },
+        challenge: challenge._id,
+        isCorrect: true
+      }).session(session);
+      const solveOf = player => ownSolves.find(item => String(item.user) === String(player._id));
+      const captain = players.find(player => String(player._id) === String(team.captain));
       const credited = userId
         ? players.find(player => String(player._id) === String(userId))
-        : players.find(player => String(player._id) === String(team.captain)) || players[0];
+        : [captain, ...players].find(player => player && !solveOf(player)) || captain || players[0];
       if (!credited) {
         throw httpError(400, userId
           ? 'The selected member cannot be credited with this solve'
           : 'This team has no player who can be credited with the solve');
       }
 
-      const existing = await Submission.exists({
-        user: { $in: players.map(player => player._id) },
-        challenge: challenge._id,
-        isCorrect: true
-      }).session(session);
-      if (existing) throw httpError(409, 'This team has already solved that challenge');
-
       const solvedAt = new Date();
-      await Submission.create([{
-        user: credited._id,
-        challenge: challenge._id,
-        submittedFlag: ADMIN_SOLVE_MARKER,
-        isCorrect: true,
-        submittedAt: solvedAt,
-        ipAddress,
-        userAgent: 'admin-adjustment'
-      }], { session });
+      const prior = solveOf(credited);
+      if (prior) {
+        if (prior.team && await Team.exists({ _id: prior.team }).session(session)) {
+          throw httpError(409, 'That member\'s solve already counts for another team. Credit a different member.');
+        }
+        // Made without a team (or for a deleted one): move it to this team
+        await Submission.updateOne({ _id: prior._id }, { $set: { team: team._id } }, { session });
+      } else {
+        await Submission.create([{
+          user: credited._id,
+          team: team._id,
+          challenge: challenge._id,
+          submittedFlag: ADMIN_SOLVE_MARKER,
+          isCorrect: true,
+          submittedAt: solvedAt,
+          ipAddress,
+          userAgent: 'admin-adjustment'
+        }], { session });
+      }
 
-      memberIds = members.map(member => member._id);
-      await User.updateMany(
-        { _id: { $in: memberIds } },
+      memberIds = [credited._id];
+      await User.updateOne(
+        { _id: credited._id },
         { $addToSet: { solvedChallenges: challenge._id }, $inc: { scoreRevision: 1 } },
         { session }
       );
@@ -194,22 +208,16 @@ async function markUnsolved(teamId, challengeId) {
   try {
     await session.withTransaction(async () => {
       const team = await lockTeam(teamId, session);
-      const members = await User.find({ team: team._id })
-        .select('_id solvedChallenges')
+      const solves = await Submission.find({ team: team._id, challenge: challengeId, isCorrect: true })
+        .select('user')
         .session(session)
         .lean();
-      memberIds = members.map(member => member._id);
-
-      const removed = await Submission.deleteMany(
-        { user: { $in: memberIds }, challenge: challengeId, isCorrect: true },
-        { session }
-      );
-      const wasListed = containsId(team.solvedChallenges, challengeId)
-        || members.some(member => containsId(member.solvedChallenges, challengeId));
-      if (!removed.deletedCount && !wasListed) {
+      if (!solves.length && !containsId(team.solvedChallenges, challengeId)) {
         throw httpError(404, 'This team has not solved that challenge');
       }
+      memberIds = solves.map(solve => solve.user);
 
+      await Submission.deleteMany({ _id: { $in: solves.map(solve => solve._id) } }, { session });
       await Team.updateOne({ _id: team._id }, { $pull: { solvedChallenges: challengeId } }, { session });
       await User.updateMany(
         { _id: { $in: memberIds } },

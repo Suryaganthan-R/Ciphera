@@ -1,14 +1,35 @@
 /**
- * Score and solve lookups shared by hint unlocking, team pages and admin tools.
- * Scores follow the scoreboard: solves by current members plus awards.
+ * Scoring rules shared by flag submission, scoreboards, hint unlocking and admin tools.
+ *
+ * - A solve belongs to the player who submitted it and to the team they were in then
+ *   (Submission.team). It never moves when the player changes teams.
+ * - A team scores each challenge at most once.
+ * - A player scores their own solves, whichever team they were in.
+ * - Awards (including hint costs) work the same way: Award.team or Award.creditedTeam
+ *   names the team, Award.user names the player.
  */
+const mongoose = require('mongoose');
 const Submission = require('../models/Submission');
 const Award = require('../models/Award');
 const User = require('../models/User');
 
-const sumSolvePoints = async (userIds, session) => {
+// Aggregations do not cast strings to ObjectIds.
+const toId = value => new mongoose.Types.ObjectId(String(value?._id || value));
+
+// Admin accounts never score.
+async function getNonPlayerIds(session = null) {
+  const users = await User.find({ role: { $ne: 'user' } }).select('_id').session(session).lean();
+  return users.map(user => user._id);
+}
+
+// Matches the correct solves that count for a team.
+async function getTeamSolveQuery(teamId, session = null) {
+  return { team: toId(teamId), isCorrect: true, user: { $nin: await getNonPlayerIds(session) } };
+}
+
+const sumSolvePoints = async (match, session) => {
   const [row] = await Submission.aggregate([
-    { $match: { user: { $in: userIds }, isCorrect: true } },
+    { $match: match },
     { $lookup: { from: 'challenges', localField: 'challenge', foreignField: '_id', as: 'challengeData' } },
     { $unwind: '$challengeData' },
     { $group: { _id: null, total: { $sum: '$challengeData.points' } } }
@@ -24,38 +45,72 @@ const sumAwardPoints = async (match, session) => {
   return row?.total || 0;
 };
 
-// Raw scores can be negative when hint costs exceed the points still held.
+// Raw scores can be negative when an admin removes points that were already spent on hints.
 // Check balances against the raw value and display it clamped to zero.
 async function getTeamRawScore(teamId, session = null) {
-  const members = await User.find({ team: teamId }).select('_id role').session(session).lean();
-  const solverIds = members.filter(member => member.role === 'user').map(member => member._id);
-  const solvePoints = await sumSolvePoints(solverIds, session);
+  const solvePoints = await sumSolvePoints(await getTeamSolveQuery(teamId, session), session);
   const awardPoints = await sumAwardPoints(
-    { $or: [{ team: teamId }, { user: { $in: members.map(member => member._id) } }] },
+    { $or: [{ team: toId(teamId) }, { creditedTeam: toId(teamId) }] },
     session
   );
   return solvePoints + awardPoints;
 }
 
 async function getUserRawScore(userId, session = null) {
-  const solvePoints = await sumSolvePoints([userId], session);
-  const awardPoints = await sumAwardPoints({ user: userId }, session);
+  const solvePoints = await sumSolvePoints({ user: toId(userId), isCorrect: true }, session);
+  const awardPoints = await sumAwardPoints({ user: toId(userId) }, session);
   return solvePoints + awardPoints;
 }
 
-// True when the user, or any member of their team, has already solved the challenge.
-async function hasSolved(challengeId, user, team = null, session = null) {
-  const includes = list => (list || []).some(id => String(id) === String(challengeId));
-  if (includes(user.solvedChallenges) || includes(team?.solvedChallenges)) return true;
+// A challenge is closed to a player once they or their current team have solved it.
+const solverScope = (userId, teamId) => (teamId
+  ? { $or: [{ user: toId(userId) }, { team: toId(teamId) }] }
+  : { user: toId(userId) });
 
-  let userIds = [user._id];
-  if (team) {
-    const members = await User.find({ team: team._id }).select('_id').session(session).lean();
-    userIds = members.map(member => member._id);
-  }
-  const solve = await Submission.exists({ user: { $in: userIds }, challenge: challengeId, isCorrect: true })
-    .session(session);
+async function hasSolved(challengeId, userId, teamId = null, session = null) {
+  const solve = await Submission.exists({
+    challenge: challengeId,
+    isCorrect: true,
+    ...solverScope(userId, teamId)
+  }).session(session);
   return Boolean(solve);
 }
 
-module.exports = { getTeamRawScore, getUserRawScore, hasSolved };
+async function getSolvedChallengeIds(userId, teamId = null) {
+  return Submission.distinct('challenge', { isCorrect: true, ...solverScope(userId, teamId) });
+}
+
+// User.points is a stored copy of the player's score, used by profile and admin lists.
+// Works in bulk because a dynamic value change affects every solver at once.
+async function refreshUserPoints(userIds) {
+  const ids = [...new Set((userIds || []).filter(Boolean).map(id => String(id?._id || id)))].map(toId);
+  if (!ids.length) return;
+
+  const solves = await Submission.aggregate([
+    { $match: { user: { $in: ids }, isCorrect: true } },
+    { $lookup: { from: 'challenges', localField: 'challenge', foreignField: '_id', as: 'challengeData' } },
+    { $unwind: '$challengeData' },
+    { $group: { _id: '$user', total: { $sum: '$challengeData.points' } } }
+  ]);
+  const awards = await Award.aggregate([
+    { $match: { user: { $in: ids } } },
+    { $group: { _id: '$user', total: { $sum: '$value' } } }
+  ]);
+
+  const scores = new Map(ids.map(id => [String(id), 0]));
+  [...solves, ...awards].forEach(row => scores.set(String(row._id), scores.get(String(row._id)) + row.total));
+
+  await User.bulkWrite(ids.map(id => ({
+    updateOne: { filter: { _id: id }, update: { $set: { points: Math.max(0, scores.get(String(id))) } } }
+  })));
+}
+
+module.exports = {
+  getNonPlayerIds,
+  getTeamSolveQuery,
+  getTeamRawScore,
+  getUserRawScore,
+  hasSolved,
+  getSolvedChallengeIds,
+  refreshUserPoints
+};

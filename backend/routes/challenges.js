@@ -21,7 +21,7 @@ const { getRedisClient } = require('../utils/redis');
 const { clearScoreboardCache } = require('../utils/redis');
 const monitoring = require('../utils/monitoring');
 const scoringService = require('../services/scoringService');
-const { hasSolved } = require('../utils/teamScore');
+const { hasSolved, getSolvedChallengeIds, getUserRawScore, refreshUserPoints } = require('../utils/teamScore');
 const { 
   upload, 
   handleMulterError, 
@@ -79,9 +79,9 @@ router.get('/', protect, sanitizeInput, async (req, res) => {
       query.isVisible = true;
     }
 
-    // Get user's solved challenges for stats calculation
-    const fullUser = await User.findById(user._id).select('solvedChallenges').lean();
-    const userSolvedIds = fullUser?.solvedChallenges || [];
+    // Solved by this player or their current team
+    const fullUser = await User.findById(user._id).select('team').lean();
+    const userSolvedIds = await getSolvedChallengeIds(user._id, fullUser?.team);
 
     const total = await Challenge.countDocuments(query);
     const challenges = await Challenge.find(query)
@@ -162,22 +162,16 @@ router.get('/:id/solves', protect, async (req, res) => {
       challenge: req.params.id,
       isCorrect: true
     })
-      .populate('user', 'username team role')
-      .populate({
-        path: 'user',
-        populate: {
-          path: 'team',
-          select: 'name'
-        }
-      })
+      .populate('user', 'username role')
+      .populate('team', 'name')
       .sort({ submittedAt: 1 })
-      .select('user submittedAt')
+      .select('user team submittedAt')
       .lean();
 
     // Format the response
     const solves = submissions.filter(sub => sub.user?.role === 'user').map(sub => ({
       username: sub.user?.username || 'Unknown',
-      team: sub.user?.team?.name || 'No Team',
+      team: sub.team?.name || 'No Team',
       solvedAt: sub.submittedAt
     }));
 
@@ -234,14 +228,13 @@ router.get('/:id', async (req, res) => {
       try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const user = await User.findById(decoded.id)
-          .select('role team solvedChallenges')
-          .populate('team', 'solvedChallenges');
+          .select('role team');
         isAdmin = user && user.role === 'admin';
         
         if (user) {
           userId = user._id;
-          teamId = user.team ? user.team._id : null;
-          challenge.isSolved = await hasSolved(challenge._id, user, user.team);
+          teamId = user.team || null;
+          challenge.isSolved = await hasSolved(challenge._id, user._id, teamId);
         }
       } catch (e) {
         // Invalid token, treat as non-admin
@@ -483,19 +476,8 @@ router.post('/:id/submit', protect, sanitizeInput, checkEventNotEnded, async (re
       });
     }
 
-    // Check if already solved by user OR their team
-    let alreadySolved = user.solvedChallenges.some(
-      id => id.toString() === challenge._id.toString()
-    );
-
-    // If user has a team, check if team has already solved it
-    if (!alreadySolved && user.team) {
-      const Team = require('../models/Team');
-      const team = await Team.findById(user.team._id);
-      if (team && team.solvedChallenges.some(id => id.toString() === challenge._id.toString())) {
-        alreadySolved = true;
-      }
-    }
+    // Check if already solved by the user OR their current team
+    const alreadySolved = await hasSolved(challenge._id, user._id, user.team?._id);
 
     if (alreadySolved) {
       const existingCorrectSubmission = await Submission.findOne({
@@ -543,6 +525,7 @@ router.post('/:id/submit', protect, sanitizeInput, checkEventNotEnded, async (re
     if (!isCorrect) {
       await Submission.create({
         user: req.user._id,
+        team: user.team?._id || null,
         challenge: challenge._id,
         submittedFlag,
         isCorrect: false,
@@ -610,35 +593,54 @@ router.post('/:id/submit', protect, sanitizeInput, checkEventNotEnded, async (re
 
     // Use transaction for atomic operations to prevent race conditions
     const session = await mongoose.startSession();
+    let solveTeamId = null;
     try {
       await session.withTransaction(async () => {
         // Final check inside transaction to prevent any scoring writes if submissions are disabled
         const eventStateInTransaction = await getEventState();
         if (!eventStateInTransaction.isSubmissionAllowed) {
-          if (eventStateInTransaction.status === 'ended') {
-            throw new Error('CTF event has ended.');
-          }
-          if (eventStateInTransaction.status === 'not_started') {
-            throw new Error('CTF event has not started yet.');
-          }
-          throw new Error('CTF is paused by admin.');
+          const message = eventStateInTransaction.status === 'ended'
+            ? 'CTF event has ended.'
+            : eventStateInTransaction.status === 'not_started'
+              ? 'CTF event has not started yet.'
+              : 'CTF is paused by admin.';
+          throw Object.assign(new Error(message), { status: 403 });
+        }
+
+        // Writing to the player and team first makes simultaneous solves, hint unlocks and
+        // team changes conflict, so MongoDB runs them one at a time.
+        const Team = require('../models/Team');
+        const solver = await User.findByIdAndUpdate(
+          req.user._id,
+          { $inc: { scoreRevision: 1 } },
+          { new: true, session }
+        );
+        if (!solver) throw Object.assign(new Error('User not found'), { status: 404 });
+        const team = solver.team
+          ? await Team.findByIdAndUpdate(solver.team, { $inc: { scoreRevision: 1 } }, { new: true, session })
+          : null;
+        solveTeamId = team?._id || null;
+
+        // Check again now that no other solve for this player or team can slip in
+        if (await hasSolved(challenge._id, solver._id, solveTeamId, session)) {
+          throw Object.assign(new Error('This challenge has already been solved by you or your team'), { status: 400 });
         }
 
         await new Submission({
-          user: req.user._id,
+          user: solver._id,
+          team: solveTeamId,
           challenge: challenge._id,
           submittedFlag,
           isCorrect: true,
           ipAddress: clientIp,
           userAgent
         }).save({ session });
-        
-        // CTFd-style: Update solvedBy arrays + user.points for display
-        // Scoreboard calculations use dynamic JOIN queries for accurate ranking
-        
-        // Update user with solve time, track personal solve, and update points
-        const userUpdate = await User.findByIdAndUpdate(
-          req.user._id,
+
+        // Include this solve in the player's stored score
+        const score = await getUserRawScore(solver._id, session);
+
+        await User.updateOne(
+          { _id: solver._id },
           {
             $addToSet: {
               solvedChallenges: challenge._id,
@@ -648,119 +650,56 @@ router.post('/:id/submit', protect, sanitizeInput, checkEventNotEnded, async (re
                 solvedAt: new Date()
               }
             },
-            $set: { lastSolveTime: new Date() }
+            $set: { lastSolveTime: new Date(), points: Math.max(0, score) }
           },
-          { session, new: true }
-        );
-
-        // Calculate user's total points from all solved challenges (CTFd-style solve component)
-        const userSubmissions = await Submission.aggregate([
-          { $match: { user: req.user._id, isCorrect: true } },
-          {
-            $lookup: {
-              from: 'challenges',
-              localField: 'challenge',
-              foreignField: '_id',
-              as: 'challengeData'
-            }
-          },
-          { $unwind: '$challengeData' },
-          {
-            $group: {
-              _id: null,
-              totalPoints: { $sum: '$challengeData.points' }
-            }
-          }
-        ]);
-
-        const solvePoints = userSubmissions.length > 0 ? userSubmissions[0].totalPoints : 0;
-
-        // Add user awards (CTFd-style award component)
-        const Award = require('../models/Award');
-        const userAwards = await Award.aggregate([
-          { $match: { user: req.user._id, value: { $ne: 0 } } },
-          {
-            $group: {
-              _id: null,
-              totalAwardPoints: { $sum: '$value' }
-            }
-          }
-        ]);
-
-        const awardPoints = userAwards.length > 0 ? userAwards[0].totalAwardPoints : 0;
-        const totalPoints = Math.max(0, solvePoints + awardPoints);
-        
-        // Update user.points field for display in profile pages
-        await User.findByIdAndUpdate(
-          req.user._id,
-          { $set: { points: totalPoints } },
           { session }
         );
 
         // Update challenge solvedBy array
-        await Challenge.findByIdAndUpdate(
-          req.params.id,
-          { $addToSet: { solvedBy: req.user._id } },
+        await Challenge.updateOne(
+          { _id: challenge._id },
+          { $addToSet: { solvedBy: solver._id } },
           { session }
         );
 
-        // For dynamic challenges: Update challenge.points value
-        // This automatically updates ALL users' scores (calculated via JOIN)
-        if (challenge.function === 'linear' || challenge.function === 'logarithmic') {
-          await scoringService.updateChallengeValue(challenge._id);
-        }
-
-        // Clear scoreboard cache (CTFd's clear_standings())
-        await clearScoreboardCache();
-
-        // If user has a team, update team solvedBy array
-        if (user.team) {
-          const Team = require('../models/Team');
-
-          // Update the team solvedBy
-          await Team.findByIdAndUpdate(
-            user.team._id,
-            {
-              $addToSet: { solvedChallenges: challenge._id }
-            },
-            { session }
-          );
-
-          // Update ALL team members to mark this challenge as solved
-          // This prevents other team members from solving it again
-          await User.updateMany(
-            {
-              team: user.team._id,
-              _id: { $ne: req.user._id } // Exclude current user (already updated above)
-            },
-            {
-              $addToSet: { solvedChallenges: challenge._id }
-            },
+        if (team) {
+          await Team.updateOne(
+            { _id: team._id },
+            { $addToSet: { solvedChallenges: challenge._id } },
             { session }
           );
         }
-
-        // Redis ZSET updates removed - scores calculated dynamically
-        // Scoreboard will aggregate from Submissions + Challenges JOINs
       });
-      
-      // Invalidate team points cache after successful transaction
-      if (user.team) {
-        const { invalidateTeamPoints } = require('../utils/teamPointsCache');
-        await invalidateTeamPoints(user.team._id);
-      }
     } catch (transactionError) {
-      // If transaction failed due to event ending, return appropriate error
-      if (transactionError.message && transactionError.message.includes('CTF event has ended')) {
-        return res.status(403).json({
+      if (transactionError.status) {
+        return res.status(transactionError.status).json({
           success: false,
-          message: 'CTF event has ended.'
+          message: transactionError.message
+        });
+      }
+      // The unique indexes rejected a second solve of the same challenge
+      if (transactionError.code === 11000) {
+        return res.status(400).json({
+          success: false,
+          message: 'This challenge has already been solved by you or your team'
         });
       }
       throw transactionError; // Re-throw other transaction errors
     } finally {
       await session.endSession();
     }
+
+    // The solve is committed. Recalculate the dynamic value and clear cached scores.
+    try {
+      await scoringService.updateChallengeValue(challenge._id);
+    } catch (valueError) {
+      console.error('[Scoring] Could not update challenge value:', valueError.message);
+    }
+    if (solveTeamId) {
+      const { invalidateTeamPoints } = require('../utils/teamPointsCache');
+      await invalidateTeamPoints(solveTeamId);
+    }
+    await clearScoreboardCache();
 
     // Get current challenge value for response
     const updatedChallenge = await Challenge.findById(challenge._id);
@@ -843,6 +782,10 @@ router.delete('/:id', protect, authorize('admin'), async (req, res) => {
     }
 
     await challenge.deleteOne();
+
+    // Its points no longer count for anyone who solved it
+    await refreshUserPoints(challenge.solvedBy);
+    await clearScoreboardCache();
 
     // Invalidate public challenges cache
     try {
@@ -946,7 +889,10 @@ router.put('/:id', protect, authorize('admin'), async (req, res) => {
     // Recalculate dynamic value from formula after update (CTFd behavior)
     if (updatedChallenge.function === 'linear' || updatedChallenge.function === 'logarithmic') {
       await scoringService.updateChallengeValue(updatedChallenge._id);
+    } else if (updatedChallenge.points !== challenge.points) {
+      await refreshUserPoints(updatedChallenge.solvedBy);
     }
+    await clearScoreboardCache();
 
     console.log('Challenge updated successfully:', {
       challengeId: updatedChallenge._id,

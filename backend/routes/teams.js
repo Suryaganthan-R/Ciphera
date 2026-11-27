@@ -7,7 +7,8 @@ const { protect, authorize } = require('../middleware/auth');
 const { invalidateTeamPoints } = require('../utils/teamPointsCache');
 const { clearScoreboardCache } = require('../utils/redis');
 const { aggregateTeamStandings } = require('../utils/teamStandings');
-const { getTeamRawScore } = require('../utils/teamScore');
+const { getTeamRawScore, getTeamSolveQuery } = require('../utils/teamScore');
+const { checkTeamChangesAllowed } = require('../middleware/eventState');
 const { listUnlockedHints } = require('../utils/unlockedHints');
 
 const MAX_TEAM_MEMBERS = 4;
@@ -31,7 +32,7 @@ const invalidateTeamCaches = async (teamId) => {
 };
 
 // Create a team with the current user as captain.
-router.post('/self', protect, async (req, res) => {
+router.post('/self', protect, checkTeamChangesAllowed, async (req, res) => {
   const mongoose = require('mongoose');
   const session = await mongoose.startSession();
   try {
@@ -112,7 +113,7 @@ router.get('/available', protect, async (req, res) => {
   }
 });
 
-router.post('/join', protect, async (req, res) => {
+router.post('/join', protect, checkTeamChangesAllowed, async (req, res) => {
   const mongoose = require('mongoose');
   const session = await mongoose.startSession();
   try {
@@ -215,7 +216,7 @@ router.post('/my/team/invite', protect, async (req, res) => {
   }
 });
 
-router.delete('/my/team/membership', protect, async (req, res) => {
+router.delete('/my/team/membership', protect, checkTeamChangesAllowed, async (req, res) => {
   const mongoose = require('mongoose');
   const session = await mongoose.startSession();
   try {
@@ -243,7 +244,7 @@ router.delete('/my/team/membership', protect, async (req, res) => {
   }
 });
 
-router.delete('/my/team', protect, async (req, res) => {
+router.delete('/my/team', protect, checkTeamChangesAllowed, async (req, res) => {
   const mongoose = require('mongoose');
   const session = await mongoose.startSession();
   try {
@@ -500,8 +501,10 @@ router.get('/:id', protect, async (req, res) => {
     const Submission = require('../models/Submission');
     const memberIds = team.members.map(m => m._id);
     
+    // Each member's solves that count for this team
+    const teamSolveQuery = await getTeamSolveQuery(team._id);
     const memberStatsAgg = await Submission.aggregate([
-      { $match: { user: { $in: memberIds }, isCorrect: true } },
+      { $match: { ...teamSolveQuery, $and: [{ user: { $in: memberIds } }] } },
       {
         $lookup: {
           from: 'challenges',
@@ -563,15 +566,8 @@ router.get('/:id', protect, async (req, res) => {
     const calculatedPoints = teamStanding?.score || 0;
     const rank = teamStanding?.pos || 0;
     
-    // Calculate total solved challenges (unique challenges across team from actual submissions)
-    const allSolvedChallenges = new Set();
-    updatedMembers.forEach(member => {
-      if (member.personallySolvedChallenges && Array.isArray(member.personallySolvedChallenges)) {
-        member.personallySolvedChallenges.forEach(challenge => {
-          allSolvedChallenges.add(challenge.toString());
-        });
-      }
-    });
+    // Challenges solved for this team, including by members who have since left
+    const allSolvedChallenges = await Submission.distinct('challenge', teamSolveQuery);
 
     // Build response with calculated values
     const teamData = {
@@ -588,7 +584,7 @@ router.get('/:id', protect, async (req, res) => {
       inviteCode: isTeamCaptain(team, req.user._id) ? team.inviteCode : undefined,
       maxMembers: MAX_TEAM_MEMBERS,
       isCaptain: isTeamCaptain(team, req.user._id),
-      solvedChallenges: allSolvedChallenges.size
+      solvedChallenges: allSolvedChallenges.length
     };
 
     res.json({

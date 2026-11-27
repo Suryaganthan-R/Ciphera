@@ -16,6 +16,12 @@ const AwardSchema = new mongoose.Schema({
     ref: 'Team',
     default: null
   },
+  // For an award given to a player: the team they were in then, which also receives it.
+  creditedTeam: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Team',
+    default: null
+  },
   name: {
     type: String,
     required: [true, 'Award name is required'],
@@ -67,6 +73,7 @@ AwardSchema.pre('validate', function(next) {
 // Indexes for performance
 AwardSchema.index({ user: 1, date: -1 });
 AwardSchema.index({ team: 1, date: -1 });
+AwardSchema.index({ creditedTeam: 1, date: -1 });
 AwardSchema.index({ date: -1 });
 
 // Virtual to get recipient (either user or team)

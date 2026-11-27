@@ -95,7 +95,7 @@ function TeamDetails() {
   };
 
   const handleLeaveTeam = async () => {
-    if (!window.confirm('Leave this team? Your past solves will no longer count toward its team score.')) return;
+    if (!window.confirm('Leave this team? Points you earned for it stay with the team.')) return;
     setActionLoading(true);
     setActionError('');
     try {

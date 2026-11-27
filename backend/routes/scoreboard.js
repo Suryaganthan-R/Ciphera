@@ -10,6 +10,7 @@ const Award = require('../models/Award');
 const Challenge = require('../models/Challenge');
 const EventState = require('../models/EventState');
 const { aggregateTeamStandings: getSharedTeamStandings } = require('../utils/teamStandings');
+const { getTeamSolveQuery } = require('../utils/teamScore');
 
 const redisClient = getRedisClient();
 
@@ -334,14 +335,8 @@ async function getSolveHistory(accountId, mode, freezeTime) {
   const isTeam = mode === 'teams';
 
   if (isTeam) {
-    // Team solves are represented by member solves mapped to team account_id
-    const members = await User.find({ team: accountId, role: 'user' }).select('_id team').lean();
-    const memberIds = members.map((m) => m._id);
-
-    const solveQuery = {
-      user: { $in: memberIds },
-      isCorrect: true
-    };
+    // Only solves earned for this team, including those by members who have since left
+    const solveQuery = await getTeamSolveQuery(accountId);
     if (freezeTime) solveQuery.submittedAt = { $lt: new Date(freezeTime) };
 
     const solves = await Submission.find(solveQuery)
@@ -367,11 +362,9 @@ async function getSolveHistory(accountId, mode, freezeTime) {
     };
     if (freezeTime) solveQuery.submittedAt = { $lt: new Date(freezeTime) };
 
-    const userDoc = await User.findById(accountId).select('_id team').lean();
-
     const solves = await Submission.find(solveQuery)
       .populate('challenge', 'points')
-      .select('submittedAt challenge user')
+      .select('submittedAt challenge user team')
       .lean();
 
     for (const s of solves) {
@@ -381,7 +374,7 @@ async function getSolveHistory(accountId, mode, freezeTime) {
         challenge_id: s.challenge._id,
         account_id: accountId,
         user_id: s.user,
-        team_id: userDoc?.team || null,
+        team_id: s.team || null,
         value: s.challenge.points
       });
     }
@@ -390,29 +383,19 @@ async function getSolveHistory(accountId, mode, freezeTime) {
   // Awards
   const awardQuery = { value: { $ne: 0 } };
   if (isTeam) {
-    const members = await User.find({ team: accountId }).select('_id team').lean();
-    const memberIds = members.map((m) => m._id);
-    const memberMap = new Map(members.map((m) => [m._id.toString(), m]));
-
-    // Awards for team directly OR users in team
-    awardQuery.$or = [
-      { team: accountId },
-      { user: { $in: memberIds } }
-    ];
+    // Awards given to the team, or to a player while they were in it
+    awardQuery.$or = [{ team: accountId }, { creditedTeam: accountId }];
 
     if (freezeTime) awardQuery.date = { $lt: new Date(freezeTime) };
 
-    const awards = await Award.find(awardQuery).select('value date user team').lean();
+    const awards = await Award.find(awardQuery).select('value date user').lean();
     for (const a of awards) {
-      const mappedTeam = a.team || memberMap.get(String(a.user))?.team || null;
-      if (!mappedTeam) continue;
-
       history.push({
         date: a.date,
         challenge_id: null,
         account_id: accountId,
         user_id: a.user || null,
-        team_id: mappedTeam,
+        team_id: accountId,
         value: a.value
       });
     }
@@ -420,8 +403,7 @@ async function getSolveHistory(accountId, mode, freezeTime) {
     awardQuery.user = accountId;
     if (freezeTime) awardQuery.date = { $lt: new Date(freezeTime) };
 
-    const userDoc = await User.findById(accountId).select('_id team').lean();
-    const awards = await Award.find(awardQuery).select('value date user').lean();
+    const awards = await Award.find(awardQuery).select('value date user creditedTeam').lean();
 
     for (const a of awards) {
       history.push({
@@ -429,7 +411,7 @@ async function getSolveHistory(accountId, mode, freezeTime) {
         challenge_id: null,
         account_id: accountId,
         user_id: a.user || accountId,
-        team_id: userDoc?.team || null,
+        team_id: a.creditedTeam || null,
         value: a.value
       });
     }
