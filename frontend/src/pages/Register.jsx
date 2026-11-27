@@ -20,13 +20,17 @@ function Register() {
     ? returnTo
     : '/';
 
-  const onGoogleCredential = async (credential) => {
+  const onGoogleCredential = async (credential, username) => {
     setFormError('');
     try {
-      await loginWithGoogle(credential);
-      navigate(destination, { replace: true });
+      const result = await loginWithGoogle(credential, username);
+      if (!result.needsUsername) navigate(destination, { replace: true });
+      return result;
     } catch (err) {
+      // While choosing a name, the window shows the error itself
+      if (username !== undefined) throw err;
       setFormError(err.message);
+      return null;
     }
   };
 

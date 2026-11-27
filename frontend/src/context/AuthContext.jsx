@@ -61,7 +61,8 @@ axios.interceptors.response.use(
     // Handle 401 errors with refresh token logic
     // Skip refresh logic for login/register endpoints (they should fail immediately)
     const isLoginEndpoint = originalRequest?.url?.includes('/api/auth/login') || 
-                           originalRequest?.url?.includes('/api/auth/register');
+                           originalRequest?.url?.includes('/api/auth/register') ||
+                           originalRequest?.url?.includes('/api/auth/google');
     
     if (error.response?.status === 401 && !originalRequest._retry && !isLoginEndpoint) {
       if (isRefreshing) {
@@ -341,12 +342,15 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const loginWithGoogle = async (credential) => {
+  // A first-time Google user gets { needsUsername } back and is not signed in
+  // until this is called again with the name they chose.
+  const loginWithGoogle = async (credential, username) => {
     try {
       setLoading(true);
       setError(null);
 
-      const res = await axios.post('/api/auth/google', { credential });
+      const res = await axios.post('/api/auth/google', { credential, username });
+      if (res.data.needsUsername) return res.data;
       setUser(res.data.user);
       setIsAuthenticated(true);
       return res.data;

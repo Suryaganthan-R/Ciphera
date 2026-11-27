@@ -5,6 +5,7 @@ import { Award, Trophy, Lock, Users, Flag, Medal, Mail } from 'lucide-react';
 import axios from 'axios';
 import AuthContext from '../context/AuthContext';
 import { Loading } from '../components/ui';
+import ProfileName from '../components/ProfileName';
 import './UserProfile.css';
 
 function Profile() {
@@ -83,7 +84,10 @@ function Profile() {
         animate={{ opacity: 1, y: 0 }}
       >
         <div className="htb-user-info">
-          <h1 className="htb-user-name">{user.username}</h1>
+          <ProfileName
+            username={user.username}
+            onSaved={(username) => setUser(current => ({ ...current, username }))}
+          />
           <div className="htb-user-email">
             <Mail size={16} />
             <span>{user.email}</span>
