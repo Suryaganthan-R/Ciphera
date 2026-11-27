@@ -15,6 +15,8 @@ const LIMITS = {
   login: { limit: setting('LOGIN_FAILURES_PER_5_MINUTES', 10), seconds: 300 },
   // Per email from any address
   loginAccount: { limit: setting('LOGIN_ACCOUNT_FAILURES_PER_5_MINUTES', 100), seconds: 300 },
+  // Successful username changes per player
+  username: { limit: setting('USERNAME_CHANGES_PER_HOUR', 5), seconds: 3600 },
   teamPassword: { limit: setting('TEAM_PASSWORD_FAILURES_PER_5_MINUTES', 10), seconds: 300 }
 };
 

@@ -9,6 +9,9 @@ const { isListedUser } = require('../utils/scoringRules');
 const { takeAttempt, tooMany } = require('../utils/attempts');
 const { rescore } = require('../utils/rescore');
 const { ensureCaptain, removeFromTeams } = require('../utils/teamMembership');
+const { checkUsername, isUsernameTaken, USERNAME_TAKEN } = require('../utils/usernames');
+const { requireNotBanned } = require('../utils/access');
+const { clearScoreboardCache } = require('../utils/redis');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const config = require('../config');
@@ -186,6 +189,67 @@ router.post('/register', async (req, res) => {
   }
 });
 
+// A free name based on the Google profile, offered as a starting point
+const suggestUsername = async (displayName) => {
+  const cleaned = displayName.normalize('NFKD').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 24);
+  const base = cleaned.length >= 3 ? cleaned : `user_${cleaned || 'google'}`;
+  let username = base;
+  let suffix = 1;
+  while (await isUsernameTaken(username)) {
+    const suffixText = `_${suffix++}`;
+    username = `${base.slice(0, 24 - suffixText.length)}${suffixText}`;
+  }
+  return username;
+};
+
+// @route   PUT /api/auth/me/username
+// @desc    Change your own username
+// @access  Private
+router.put('/me/username', protect, requireNotBanned, async (req, res) => {
+  try {
+    const chosen = checkUsername(req.body.username);
+    if (chosen.error) {
+      return res.status(400).json({ success: false, message: chosen.error });
+    }
+
+    const current = await User.findById(req.user._id).select('username').lean();
+    if (current.username === chosen.username) {
+      return res.json({ success: true, username: current.username });
+    }
+    if (await isUsernameTaken(chosen.username, req.user._id)) {
+      return res.status(409).json({ success: false, message: USERNAME_TAKEN });
+    }
+
+    // Stops players renaming themselves constantly during an event
+    const attempt = await takeAttempt('username', req.user._id);
+    if (!attempt.allowed) {
+      return tooMany(res, attempt.retryAfter, 'You have changed your username too often. Please try again later.');
+    }
+
+    try {
+      await User.updateOne({ _id: req.user._id }, { $set: { username: chosen.username } });
+    } catch (updateError) {
+      await attempt.release();
+      if (updateError.code !== 11000) throw updateError;
+      return res.status(409).json({ success: false, message: USERNAME_TAKEN });
+    }
+
+    // Everywhere else reads the name from the account. Refresh the copies and caches.
+    await LoginLog.updateMany({ user: req.user._id }, { $set: { username: chosen.username } });
+    try {
+      await redisClient.del(`user:${req.user._id}`);
+    } catch (cacheError) {
+      console.error('Could not clear the user cache:', cacheError.message);
+    }
+    await clearScoreboardCache();
+
+    res.json({ success: true, username: chosen.username });
+  } catch (error) {
+    console.error('Error changing username:', error);
+    res.status(500).json({ success: false, message: 'Error changing username' });
+  }
+});
+
 // @route   POST /api/auth/google
 // @desc    Verify Google identity and sign in or create an eligible account
 // @access  Public
@@ -218,26 +282,41 @@ router.post('/google', async (req, res) => {
         });
       }
 
-      const cleanedUsername = (googleUser.name || email.split('@')[0])
-        .normalize('NFKD')
-        .replace(/[^a-zA-Z0-9_-]/g, '')
-        .slice(0, 24);
-      const baseUsername = cleanedUsername.length >= 3 ? cleanedUsername : `user_${cleanedUsername || 'google'}`;
-      let username = baseUsername;
-      let suffix = 1;
-      while (await User.exists({ username })) {
-        const suffixText = `_${suffix++}`;
-        username = `${baseUsername.slice(0, 24 - suffixText.length)}${suffixText}`;
+      // First sign-in: the player chooses a username before the account is created.
+      // Nothing is saved until then, so closing the window just asks again next time.
+      if (req.body.username === undefined) {
+        return res.json({
+          success: true,
+          needsUsername: true,
+          suggestedUsername: await suggestUsername(googleUser.name || email.split('@')[0])
+        });
       }
 
-      user = await User.create({
-        username,
-        email,
-        password: crypto.randomBytes(32).toString('hex'),
-        role: 'user',
-        verified: true,
-        isEmailVerified: true
-      });
+      const chosen = checkUsername(req.body.username);
+      if (chosen.error) {
+        return res.status(400).json({ success: false, message: chosen.error });
+      }
+      if (await isUsernameTaken(chosen.username)) {
+        return res.status(409).json({ success: false, message: USERNAME_TAKEN });
+      }
+
+      try {
+        user = await User.create({
+          username: chosen.username,
+          email,
+          password: crypto.randomBytes(32).toString('hex'),
+          role: 'user',
+          verified: true,
+          isEmailVerified: true
+        });
+      } catch (createError) {
+        if (createError.code !== 11000) throw createError;
+        // Sent twice: the account now exists. Otherwise someone just took the name.
+        user = await User.findOne({ email });
+        if (!user) {
+          return res.status(409).json({ success: false, message: USERNAME_TAKEN });
+        }
+      }
     }
 
     if (user.isBlocked) {
