@@ -7,6 +7,7 @@ import axios from 'axios'
 import AuthContext from '../context/AuthContext'
 import { useEventState } from '../hooks/useEventState'
 import { Loading } from '../components/ui'
+import { ShinyButton } from '../components/ui/shiny-button'
 import './ChallengeDetails.css'
 
 // Set default axios timeout for this component
@@ -260,12 +261,9 @@ const FlagSubmissionModal = ({ challenge, onClose, onSubmit }) => {
                 </div>
               </div>
 
-              <motion.button
+              <ShinyButton
                 type="submit"
-                className="htb-submit-flag-btn"
-                disabled={isSubmitting || success || !isSubmissionAllowed}
-                whileHover={!isSubmitting && !success && isSubmissionAllowed ? { scale: 1.05 } : {}}
-                whileTap={!isSubmitting && !success && isSubmissionAllowed ? { scale: 0.95 } : {}}
+                disabled={isSubmitting || Boolean(success) || !isSubmissionAllowed}
               >
                 {isNotStarted ? (
                   'Event Not Started'
@@ -284,7 +282,7 @@ const FlagSubmissionModal = ({ challenge, onClose, onSubmit }) => {
                     Submit Flag
                   </>
                 )}
-              </motion.button>
+              </ShinyButton>
             </form>
           </div>
         </motion.div>
@@ -823,12 +821,10 @@ function ChallengeDetails() {
                 CTF Event Has Ended - Flag submissions are no longer accepted
               </div>
             ) : (
-              <motion.button
-                className={`htb-submit-btn ${isSolved ? 'solved' : ''} ${!isAuthenticated ? 'disabled' : ''}`}
+              <ShinyButton
+                className="w-full sm:w-auto min-w-[200px]"
                 onClick={openModal}
                 disabled={isSolved}
-                whileHover={!isSolved ? { scale: 1.05, boxShadow: '0 0 30px var(--primary-glow)' } : {}}
-                whileTap={!isSolved ? { scale: 0.95 } : {}}
               >
                 {isSolved ? (
                   <>
@@ -843,7 +839,7 @@ function ChallengeDetails() {
                 ) : (
                   'Login to Solve'
                 )}
-              </motion.button>
+              </ShinyButton>
             )}
           </motion.div>
         </motion.div>
