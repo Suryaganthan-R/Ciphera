@@ -126,14 +126,30 @@ router.post('/set-times', protect, authorize('admin'), async (req, res) => {
 router.post('/start', protect, authorize('admin'), async (req, res) => {
   try {
     const now = new Date();
+    // Read the database: pressing Start must never overwrite a running event
+    const current = await EventState.getEventState();
+    const hasStarted = current.startedAt && current.startedAt <= now;
+    const hasEnded = current.endedAt && current.endedAt <= now;
+    if (hasStarted && !hasEnded) {
+      return res.status(400).json({
+        success: false,
+        message: 'The CTF is already running. Use Pause, Resume, Freeze or End instead.'
+      });
+    }
+
+    // Keep a scheduled end that is still ahead, and any freeze that fits before it
+    const endedAt = current.endedAt && current.endedAt > now ? current.endedAt : null;
+    const freezeAt = current.freezeAt && (!endedAt || current.freezeAt < endedAt)
+      ? current.freezeAt
+      : null;
 
     const updatedState = await EventState.findByIdAndUpdate(
       FIXED_ID,
       {
         status: 'started',
         startedAt: now,
-        endedAt: null,
-        freezeAt: null,
+        endedAt,
+        freezeAt,
         isPaused: false,
         pausedAt: null,
         pausedBy: null,
@@ -157,7 +173,9 @@ router.post('/start', protect, authorize('admin'), async (req, res) => {
 
     res.json({
       success: true,
-      message: 'CTF started successfully',
+      message: freezeAt && freezeAt <= now
+        ? 'CTF started. The scoreboard is still frozen: clear Freeze Time in the competition times to unfreeze it.'
+        : 'CTF started successfully',
       data: {
         status: updatedState.status,
         startedAt: updatedState.startedAt,

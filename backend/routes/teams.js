@@ -12,6 +12,7 @@ const { getViewer, isAdmin, getFreezeTime, getVisibility, allows, requireNotBann
 const { isBannedUser, isBannedTeam, isListedTeam } = require('../utils/scoringRules');
 const { takeAttempt, tooMany } = require('../utils/attempts');
 const { rescore } = require('../utils/rescore');
+const { ensureCaptain } = require('../utils/teamMembership');
 const { checkTeamChangesAllowed } = require('../middleware/eventState');
 const { listUnlockedHints } = require('../utils/unlockedHints');
 
@@ -177,6 +178,7 @@ router.post('/join', protect, requireNotBanned, checkTeamChangesAllowed, async (
       if (!team) {
         throw Object.assign(new Error('This team is full or you are already a member'), { status: 409 });
       }
+      await ensureCaptain(team._id, session);
       joinedTeam = team;
     });
     await session.endSession();
@@ -763,6 +765,7 @@ router.post('/:id/members/:userId', protect, authorize('admin'), async (req, res
       if (!updatedTeam) throw Object.assign(new Error('Team is full or user is already a member'), { status: 409 });
       const assigned = await User.updateOne({ _id: user._id, team: null }, { $set: { team: currentTeam._id } }, { session });
       if (!assigned.modifiedCount) throw Object.assign(new Error('User is already in a team'), { status: 409 });
+      await ensureCaptain(updatedTeam._id, session);
       team = updatedTeam;
     });
     await session.endSession();

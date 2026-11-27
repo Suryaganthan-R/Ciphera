@@ -458,23 +458,8 @@ router.post('/:id/submit', protect, sanitizeInput, checkEventNotEnded, async (re
     // Check if already solved by the user OR their current team
     const alreadySolved = await hasSolved(challenge._id, user._id, user.team?._id);
 
+    // Say nothing about the submitted flag once the challenge is solved
     if (alreadySolved) {
-      const existingCorrectSubmission = await Submission.findOne({
-        user: req.user._id,
-        challenge: challenge._id,
-        isCorrect: true
-      }).lean();
-
-      if (existingCorrectSubmission) {
-        return res.json({
-          success: true,
-          message: 'correct',
-          alreadySolved: true,
-          points: challenge.getCurrentValue(),
-          timestamp: new Date().toISOString()
-        });
-      }
-
       return res.status(400).json({
         success: false,
         message: 'This challenge has already been solved by you or your team'

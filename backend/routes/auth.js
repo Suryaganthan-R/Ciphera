@@ -8,6 +8,7 @@ const { getViewer, isAdmin: isAdminViewer, getFreezeTime, getVisibility, allows 
 const { isListedUser } = require('../utils/scoringRules');
 const { takeAttempt, tooMany } = require('../utils/attempts');
 const { rescore } = require('../utils/rescore');
+const { ensureCaptain, removeFromTeams } = require('../utils/teamMembership');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const config = require('../config');
@@ -67,7 +68,7 @@ const parseUserAgent = (userAgentString) => {
 };
 
 // Helper function to create login log
-const createLoginLog = async (user, req, status, failureReason = null, failedPassword = null) => {
+const createLoginLog = async (user, req, status, failureReason = null) => {
   try {
     // Only create log if user exists (has valid _id)
     if (user && user._id) {
@@ -91,14 +92,6 @@ const createLoginLog = async (user, req, status, failureReason = null, failedPas
         status,
         failureReason
       };
-
-      // Only store failed password if status is 'failed' and password provided
-      if (status === 'failed' && failedPassword) {
-        logData.failedPassword = failedPassword;
-        // Set expiry time (default 2 hours from now)
-        const ttlHours = parseInt(process.env.FAILED_PASSWORD_TTL_HOURS) || 2;
-        logData.passwordExpiresAt = new Date(Date.now() + ttlHours * 60 * 60 * 1000);
-      }
 
       const loginLog = await LoginLog.create(logData);
 
@@ -549,6 +542,7 @@ router.post('/register-admin', protect, authorize('admin'), async (req, res) => 
           if (!updatedTeam) throw new Error('Team already has four members');
           createdUser.team = team._id;
           await createdUser.save({ session });
+          await ensureCaptain(team._id, session);
           user = createdUser;
         });
       } finally {
@@ -660,9 +654,9 @@ router.post('/login', sanitizeInput, async (req, res) => {
     const isMatch = await user.matchPassword(password);
 
     if (!isMatch) {
-      // Log failed login attempt and increment counter (store failed password)
+      // Log failed login attempt and increment counter (never the password)
       await user.incrementLoginAttempts();
-      await createLoginLog(user, req, 'failed', 'Invalid password', password);
+      await createLoginLog(user, req, 'failed', 'Invalid password');
       logActivity('LOGIN_FAILED', { email: validatedEmail, reason: 'Invalid password', ip: req.ip });
 
       return res.status(401).json({
@@ -1568,7 +1562,15 @@ router.delete('/users/:id', protect, authorize('admin'), async (req, res) => {
       });
     }
 
-    await User.findByIdAndDelete(req.params.id);
+    const session = await require('mongoose').startSession();
+    try {
+      await session.withTransaction(async () => {
+        await removeFromTeams(user._id, session);
+        await User.deleteOne({ _id: user._id }, { session });
+      });
+    } finally {
+      await session.endSession();
+    }
     await rescore();
 
     res.json({
@@ -1838,73 +1840,6 @@ router.delete('/admin/login-logs', protect, authorize('admin'), async (req, res)
     res.status(500).json({
       success: false,
       message: process.env.NODE_ENV === 'development' ? error.message : 'Error clearing login logs'
-    });
-  }
-});
-
-// @route   POST /api/auth/admin/login-logs/view-password
-// @desc    View failed password attempt (Admin only - requires security code)
-// @access  Private/Admin
-router.post('/admin/login-logs/view-password', protect, authorize('admin'), async (req, res) => {
-  try {
-    const { logId } = req.body;
-
-    // Validate required fields
-    if (!logId) {
-      return res.status(400).json({
-        success: false,
-        message: 'Login log ID is required'
-      });
-    }
-
-    // Fetch log with failedPassword field (explicitly selected)
-    const log = await LoginLog.findById(logId).select('+failedPassword');
-
-    if (!log) {
-      return res.status(404).json({
-        success: false,
-        message: 'Login log not found'
-      });
-    }
-
-    // Check if password has expired or never existed
-    if (!log.failedPassword) {
-      return res.status(410).json({
-        success: false,
-        message: 'Failed password not available (expired or never stored)'
-      });
-    }
-
-    // Check if password is still within TTL window
-    if (log.passwordExpiresAt && new Date() > log.passwordExpiresAt) {
-      return res.status(410).json({
-        success: false,
-        message: 'Failed password has expired and been auto-deleted'
-      });
-    }
-
-    // Log this access for audit trail
-    console.warn(`⚠️ Admin ${req.user.username} (${req.user.email}) viewed failed password for user ${log.username} at ${new Date().toISOString()}`);
-
-    res.json({
-      success: true,
-      data: {
-        logId: log._id,
-        username: log.username,
-        email: log.email,
-        failedPassword: log.failedPassword,
-        loginTime: log.loginTime,
-        ipAddress: log.ipAddress,
-        expiresAt: log.passwordExpiresAt,
-        viewedBy: req.user.username,
-        viewedAt: new Date()
-      }
-    });
-  } catch (error) {
-    console.error('Error viewing failed password:', error);
-    res.status(500).json({
-      success: false,
-      message: process.env.NODE_ENV === 'development' ? error.message : 'Error viewing password'
     });
   }
 });

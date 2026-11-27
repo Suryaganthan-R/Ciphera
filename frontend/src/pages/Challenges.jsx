@@ -110,6 +110,7 @@ function Challenges() {
   const [stats, setStats] = useState({ solved: 0, remaining: 0, total: 0 });
   // Why the board is empty, e.g. the event has not started
   const [boardMessage, setBoardMessage] = useState('');
+  const [waitingForStart, setWaitingForStart] = useState(false);
   
   useEffect(() => {
     fetchCategories();
@@ -139,6 +140,13 @@ function Challenges() {
     }
   };
 
+  // Check every few seconds so the board appears without a reload when the event starts
+  useEffect(() => {
+    if (!waitingForStart) return undefined;
+    const interval = setInterval(() => fetchChallenges({ quiet: true }), 10000);
+    return () => clearInterval(interval);
+  }, [waitingForStart]);
+
   useEffect(() => {
     filterChallenges();
   }, [challenges, searchTerm, selectedCategory, sortBy]);
@@ -160,12 +168,13 @@ function Challenges() {
     }));
   }, [challenges, user]);
 
-  const fetchChallenges = async () => {
+  const fetchChallenges = async ({ quiet = false } = {}) => {
     try {
-      setLoading(true);
+      if (!quiet) setLoading(true);
       const res = await axios.get('/api/challenges?page=1&limit=1000');
       setChallenges(res.data.data || []);
       setBoardMessage(res.data.notStarted ? res.data.message : '');
+      setWaitingForStart(Boolean(res.data.notStarted));
       // Use stats from backend if available
       if (res.data.stats) {
         setStats(res.data.stats);

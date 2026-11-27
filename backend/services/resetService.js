@@ -242,6 +242,16 @@ const competitionProgressReset = async (adminId, securityCode) => {
     await Unlock.deleteMany({}, { session });
     await Award.deleteMany({}, { session });
 
+    // With no solves left, dynamic challenges are worth their starting value again
+    await Challenge.updateMany(
+      { function: { $in: ['linear', 'logarithmic'] }, initial: { $ne: null } },
+      [{ $set: { points: '$initial' } }],
+      { session }
+    );
+
+    // A freeze belongs to the progress being cleared
+    await EventState.updateMany({}, { $set: { freezeAt: null } }, { session });
+
     // Reset all competition timers
     const timerUpdateResult = await CompetitionTimer.updateMany(
       {},

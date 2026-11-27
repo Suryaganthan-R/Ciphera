@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Shield, Search, RefreshCw, Trash2, Play, Pause, 
   CheckCircle, XCircle, Clock, User, Mail, Monitor,
-  MapPin, ChevronLeft, ChevronRight, AlertTriangle, Eye, Lock
+  MapPin, ChevronLeft, ChevronRight, AlertTriangle
 } from 'lucide-react';
 import axios from 'axios';
 import AuthContext from '../context/AuthContext';
@@ -27,8 +27,6 @@ function AdminLoginLogs() {
     search: ''
   });
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [viewedPasswords, setViewedPasswords] = useState({});
-  const [passwordLoading, setPasswordLoading] = useState({});
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -115,26 +113,6 @@ function AdminLoginLogs() {
       second: '2-digit',
       hour12: true
     });
-  };
-
-  const handleViewPassword = async (logId) => {
-    setPasswordLoading(prev => ({ ...prev, [logId]: true }));
-    try {
-      const response = await axios.post('/api/auth/admin/login-logs/view-password', {
-        logId
-      });
-
-      console.log('Password response:', response.data);
-      setViewedPasswords(prev => ({ ...prev, [logId]: response.data.data }));
-      setSuccessMessage('Password retrieved successfully');
-      setTimeout(() => setSuccessMessage(''), 3000);
-    } catch (err) {
-      console.error('Password fetch error:', err);
-      setError(err.response?.data?.message || 'Failed to retrieve password');
-      setTimeout(() => setError(null), 3000);
-    } finally {
-      setPasswordLoading(prev => ({ ...prev, [logId]: false }));
-    }
   };
 
   const successLogs = logs.filter(log => log.status === 'success').length;
@@ -311,7 +289,6 @@ function AdminLoginLogs() {
                 <th><Monitor size={16} /> User Agent</th>
                 <th>Status</th>
                 <th>Failure Reason</th>
-                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -353,32 +330,6 @@ function AdminLoginLogs() {
                   <td>
                     {log.failureReason && (
                       <span className="htb-failure-reason">{log.failureReason}</span>
-                    )}
-                  </td>
-                  <td>
-                    {log.status === 'failed' && log.failureReason === 'Invalid password' && (
-                      <div className="htb-password-cell">
-                        {!viewedPasswords[log._id] ? (
-                          <button
-                            className="htb-view-password-btn"
-                            onClick={() => handleViewPassword(log._id)}
-                            disabled={passwordLoading[log._id]}
-                            title="View failed password attempt"
-                          >
-                            <Eye size={14} /> {passwordLoading[log._id] ? 'Loading...' : 'View Password'}
-                          </button>
-                        ) : (
-                          <div className="htb-password-display">
-                            <Lock size={12} />
-                            <span className="htb-password-value">
-                              {viewedPasswords[log._id]?.failedPassword || 'No password available'}
-                            </span>
-                            <span className="htb-password-meta">
-                              Viewed by {viewedPasswords[log._id]?.viewedBy || 'Unknown'}
-                            </span>
-                          </div>
-                        )}
-                      </div>
                     )}
                   </td>
                 </motion.tr>

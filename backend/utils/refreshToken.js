@@ -177,6 +177,8 @@ async function saveRefreshToken(data) {
   return refreshToken;
 }
 
+const REUSE_GRACE_MS = 30 * 1000;
+
 /**
  * Validate refresh token and detect reuse
  * @param {string} token - Raw JWT token
@@ -215,7 +217,9 @@ async function validateRefreshToken(token) {
   }
 
   // Step 6: CRITICAL - Detect token reuse (security breach)
-  if (dbToken.replacedBy) {
+  // A second tab can send the old token just after the first one exchanged it,
+  // so reuse is allowed for a few seconds after the first exchange.
+  if (dbToken.replacedBy && Date.now() - dbToken.lastUsedAt.getTime() > REUSE_GRACE_MS) {
     // This token has already been used and replaced
     // Someone is trying to reuse an old token - possible theft
     console.error('[SECURITY ALERT] Refresh token reuse detected!', {
@@ -291,8 +295,11 @@ async function rotateRefreshToken(oldToken, ipAddress, userAgent) {
     replacedToken: oldToken._id
   });
 
-  // Mark old token as replaced (DON'T revoke - keep for reuse detection)
-  await oldToken.markAsReplaced(newDbToken._id);
+  // Mark old token as replaced (DON'T revoke - keep for reuse detection).
+  // Only the first exchange is recorded, so the grace period cannot be extended.
+  if (!oldToken.replacedBy) {
+    await oldToken.markAsReplaced(newDbToken._id);
+  }
 
   return {
     accessToken: newAccessToken,

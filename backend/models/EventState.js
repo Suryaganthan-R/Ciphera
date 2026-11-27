@@ -173,6 +173,10 @@ EventStateSchema.statics.setCompetitionTimes = async function ({ startTime, endT
   if (startDate && now >= startDate) derivedStatus = 'started';
   if (endDate && now >= endDate) derivedStatus = 'ended';
 
+  // Changing the times does not resume a paused event
+  const current = await this.findById(FIXED_ID);
+  const stayPaused = derivedStatus === 'started' && Boolean(current?.isPaused);
+
   return await this.findByIdAndUpdate(
     FIXED_ID,
     {
@@ -180,9 +184,9 @@ EventStateSchema.statics.setCompetitionTimes = async function ({ startTime, endT
       endedAt: endDate,
       freezeAt: freezeDate,
       status: derivedStatus,
-      isPaused: false,
-      pausedAt: null,
-      pausedBy: null,
+      isPaused: stayPaused,
+      pausedAt: stayPaused ? current.pausedAt : null,
+      pausedBy: stayPaused ? current.pausedBy : null,
       resumedAt: userId ? now : null,
       resumedBy: userId,
       updatedAt: now

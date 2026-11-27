@@ -9,6 +9,7 @@ const { getRedisClient, clearScoreboardCache } = require('../utils/redis');
 const redisClient = getRedisClient();
 const { getTeamScoreDetails, markSolved, markUnsolved } = require('../services/teamSolveService');
 const { rescore } = require('../utils/rescore');
+const { ensureCaptain } = require('../utils/teamMembership');
 
 const handleScoreRequest = (action) => async (req, res) => {
   try {
@@ -174,6 +175,7 @@ router.put('/:teamId/members/add', protect, authorize('admin'), async (req, res)
       // Update user's team
       user.team = teamId;
       await user.save({ session });
+      await ensureCaptain(team._id, session);
 
       updatedTeam = team;
     });
