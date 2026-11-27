@@ -170,13 +170,7 @@ async function waitForRedis() {
  */
 async function clearRedisCache() {
   try {
-    // Only worker 0 clears cache to avoid race conditions
-    const workerId = process.env.pm_id || process.env.NODE_APP_INSTANCE || '0';
-    if (workerId !== '0') {
-      console.log(`[Worker ${workerId}] Skipping Redis cache clear (not primary worker)`);
-      return;
-    }
-
+    // Runs in whichever process handled the reset; the cache is shared by all of them
     await waitForRedis();
     
     // Don't clear from subscriber client

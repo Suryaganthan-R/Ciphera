@@ -616,7 +616,7 @@ function AdminDashboard() {
                           <strong>{t.name}</strong>
                         </button>
                       </td>
-                      <td>{t.members?.length || 0}/2</td>
+                      <td>{t.members?.length || 0}/4</td>
                       <td>
                         <input
                           type="checkbox"

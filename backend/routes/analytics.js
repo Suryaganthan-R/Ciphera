@@ -8,6 +8,17 @@ const { getCacheStats } = require('../utils/teamPointsCache');
 const { aggregateTeamStandings } = require('../utils/teamStandings');
 const { getVoidUserIds } = require('../utils/teamScore');
 
+// Submissions stay as a record after their player or challenge is deleted
+const DELETED_USER = { _id: 'deleted-user', username: 'Deleted user', email: '', points: 0 };
+const DELETED_CHALLENGE = {
+  _id: 'deleted-challenge', title: 'Deleted challenge', category: '-', difficulty: '-', points: 0
+};
+const keepDeleted = submissions => submissions.map(submission => ({
+  ...submission,
+  user: submission.user || DELETED_USER,
+  challenge: submission.challenge === null ? DELETED_CHALLENGE : submission.challenge
+}));
+
 // @route   GET /api/analytics/cache-stats
 // @desc    Get cache performance statistics
 // @access  Private/Admin
@@ -281,11 +292,11 @@ router.get('/submissions', protect, authorize('admin'), async (req, res) => {
     const Submission = require('../models/Submission');
     
     // Get all submissions with user and challenge details
-    const submissions = await Submission.find()
+    const submissions = keepDeleted(await Submission.find()
       .populate('user', 'username email points')
       .populate('challenge', 'title category difficulty points')
       .sort({ submittedAt: -1 })
-      .lean();
+      .lean());
 
     const totalSubmissions = submissions.length;
     const successfulSubmissions = submissions.filter(s => s.isCorrect).length;
@@ -459,10 +470,10 @@ router.get('/challenge-submissions/:id', protect, authorize('admin'), async (req
       });
     }
 
-    const submissions = await Submission.find({ challenge: req.params.id })
+    const submissions = keepDeleted(await Submission.find({ challenge: req.params.id })
       .populate('user', 'username email points')
       .sort({ submittedAt: -1 })
-      .lean();
+      .lean());
 
     const successfulSubmissions = submissions.filter(s => s.isCorrect).map(s => ({
       username: s.user.username,
@@ -471,7 +482,7 @@ router.get('/challenge-submissions/:id', protect, authorize('admin'), async (req
       submittedFlag: s.submittedFlag,
       submittedAt: s.submittedAt,
       ipAddress: s.ipAddress,
-      points: s.points
+      points: challenge.points
     }));
 
     const failedSubmissions = submissions.filter(s => !s.isCorrect).map(s => ({
