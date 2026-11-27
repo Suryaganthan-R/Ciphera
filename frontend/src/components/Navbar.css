@@ -141,8 +141,10 @@
 
 .cyber-navbar-badge {
   position: absolute;
-  top: -8px;
-  right: -10px;
+  top: -12px;
+  right: -9px;
+  padding: 0 4px;
+  line-height: 1.2;
 }
 
 .cyber-navbar-user {
