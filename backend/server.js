@@ -272,7 +272,17 @@ app.use((req, res, next) => {
 });
 
 // Serve static files from uploads directory with proper security headers
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Challenge files are served only by the download route, which checks access
+app.use('/uploads', (req, res, next) => {
+  let requested;
+  try {
+    requested = path.posix.normalize(decodeURIComponent(req.path));
+  } catch {
+    return res.status(400).end();
+  }
+  if (requested.toLowerCase().startsWith('/challenges')) return res.status(404).end();
+  next();
+}, express.static(path.join(__dirname, 'uploads')));
 
 // Error handling middleware
 app.use((err, req, res, next) => {

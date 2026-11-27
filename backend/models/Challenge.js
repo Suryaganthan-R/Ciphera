@@ -98,13 +98,10 @@ const ChallengeSchema = new mongoose.Schema({
     default: 0,
     select: false
   },
+  // Players see a challenge only when this is true and state is 'visible'
   isVisible: {
     type: Boolean,
-    default: true,
-    // This is kept for backward compatibility but should use 'state' field
-    get: function () {
-      return this.state === 'visible';
-    }
+    default: true
   },
   submissionsAllowed: {
     type: Boolean,

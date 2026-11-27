@@ -8,6 +8,7 @@ const { getRedisClient, clearScoreboardCache } = require('../utils/redis');
 
 const redisClient = getRedisClient();
 const { getTeamScoreDetails, markSolved, markUnsolved } = require('../services/teamSolveService');
+const { rescore } = require('../utils/rescore');
 
 const handleScoreRequest = (action) => async (req, res) => {
   try {
@@ -341,7 +342,8 @@ router.put('/:teamId/block', protect, authorize('admin'), async (req, res) => {
 
     await session.endSession();
     
-    // No need to invalidate team points cache - blocking doesn't change points
+    // Banned teams and players no longer count towards scores or dynamic values
+    await rescore();
 
     console.log(`[Admin] Team ${teamId} ${isBlocked ? 'blocked' : 'unblocked'} by admin ${req.user.username}`);
 

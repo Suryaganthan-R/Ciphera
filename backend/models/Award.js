@@ -16,6 +16,12 @@ const AwardSchema = new mongoose.Schema({
     ref: 'Team',
     default: null
   },
+  // Set on hint costs, so they can be refunded if the challenge is deleted.
+  challenge: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Challenge',
+    default: null
+  },
   // For an award given to a player: the team they were in then, which also receives it.
   creditedTeam: {
     type: mongoose.Schema.Types.ObjectId,

@@ -150,6 +150,13 @@ router.post('/', protect, authorize('admin'), async (req, res) => {
       }
     }
 
+    if (!Number.isInteger(Number(value))) {
+      return res.status(400).json({
+        success: false,
+        error: 'Award value must be a whole number'
+      });
+    }
+
     // Create award
     const award = await Award.create({
       user: userId || null,
@@ -205,6 +212,13 @@ router.put('/:id', protect, authorize('admin'), async (req, res) => {
       return res.status(404).json({
         success: false,
         error: 'Award not found'
+      });
+    }
+
+    if (value !== undefined && !Number.isInteger(Number(value))) {
+      return res.status(400).json({
+        success: false,
+        error: 'Award value must be a whole number'
       });
     }
 

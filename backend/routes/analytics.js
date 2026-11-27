@@ -6,7 +6,7 @@ const Challenge = require('../models/Challenge');
 const { protect, authorize } = require('../middleware/auth');
 const { getCacheStats } = require('../utils/teamPointsCache');
 const { aggregateTeamStandings } = require('../utils/teamStandings');
-const { getNonPlayerIds } = require('../utils/teamScore');
+const { getVoidUserIds } = require('../utils/teamScore');
 
 // @route   GET /api/analytics/cache-stats
 // @desc    Get cache performance statistics
@@ -556,7 +556,7 @@ router.get('/progression/matrix', protect, authorize('admin'), async (req, res) 
 
     if (mode === 'teams') {
       // Same scores and order as the public team scoreboard
-      const topTeams = await aggregateTeamStandings(false, null, 100);
+      const topTeams = await aggregateTeamStandings(null, 100);
       const matrixByTeam = new Map();
 
       if (topTeams.length > 0) {
@@ -564,7 +564,7 @@ router.get('/progression/matrix', protect, authorize('admin'), async (req, res) 
           {
             $match: {
               team: { $in: topTeams.map((team) => new mongoose.Types.ObjectId(team.account_id)) },
-              user: { $nin: await getNonPlayerIds() }
+              user: { $nin: await getVoidUserIds() }
             }
           },
           {

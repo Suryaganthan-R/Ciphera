@@ -420,7 +420,7 @@ function ChallengeDetails() {
         setLoading(false);
       } catch (err) {
         console.error('Error fetching challenge:', err);
-        setError('Challenge not found');
+        setError(err.response?.data?.message || 'Challenge not found');
         setLoading(false);
       }
     };

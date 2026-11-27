@@ -35,7 +35,7 @@ function UserProfile() {
       setUser(userRes.data.user);
       setChallenges(challengesRes.data.data || []);
     } catch (err) {
-      setError('Failed to fetch user profile');
+      setError(err.response?.data?.message || 'Failed to fetch user profile');
     } finally {
       setLoading(false);
     }
@@ -137,7 +137,7 @@ function UserProfile() {
             </div>
             <div className="htb-stat-content">
               <div className="htb-stat-label">Total Points</div>
-              <div className="htb-stat-value">{user.points || 0}</div>
+              <div className="htb-stat-value">{user.scoresHidden ? 'Hidden' : user.points || 0}</div>
             </div>
           </motion.div>
 

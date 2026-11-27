@@ -8,7 +8,8 @@ const User = require('../models/User');
 const Challenge = require('../models/Challenge');
 const Submission = require('../models/Submission');
 const scoringService = require('./scoringService');
-const { getTeamRawScore, getTeamSolveQuery, refreshUserPoints } = require('../utils/teamScore');
+const { getTeamRawScore, getVoidUserIds, refreshUserPoints } = require('../utils/teamScore');
+const { isBannedUser } = require('../utils/scoringRules');
 const { listUnlockedHints } = require('../utils/unlockedHints');
 const { invalidateTeamPoints } = require('../utils/teamPointsCache');
 const { getRedisClient, clearScoreboardCache } = require('../utils/redis');
@@ -26,8 +27,12 @@ async function getTeamScoreDetails(teamId) {
   const team = await Team.findById(teamId).select('name captain solvedChallenges').lean();
   if (!team) throw httpError(404, 'Team not found');
 
-  const members = await User.find({ team: team._id }).select('username role').sort({ username: 1 }).lean();
-  const submissions = await Submission.find(await getTeamSolveQuery(team._id))
+  const members = await User.find({ team: team._id })
+    .select('username role banned isBlocked').sort({ username: 1 }).lean();
+  // All solves recorded for the team, including void ones so the admin can clear them
+  const voided = new Set((await getVoidUserIds()).map(String));
+  const pointsFrom = (item, challenge) => (voided.has(String(item.user)) ? 0 : challenge.points);
+  const submissions = await Submission.find({ team: team._id, isCorrect: true })
     .select('user challenge submittedAt submittedFlag')
     .sort({ submittedAt: 1 })
     .lean();
@@ -48,7 +53,7 @@ async function getTeamScoreDetails(teamId) {
 
     solves.forEach(item => {
       const totals = memberTotals.get(String(item.user)) || { points: 0, solved: 0 };
-      totals.points += challenge.points;
+      totals.points += pointsFrom(item, challenge);
       totals.solved += 1;
       memberTotals.set(String(item.user), totals);
     });
@@ -60,7 +65,7 @@ async function getTeamScoreDetails(teamId) {
     if (solves.length || containsId(team.solvedChallenges, challenge._id)) {
       solved.push({
         ...summary,
-        points: challenge.points * solves.length,
+        points: solves.reduce((sum, item) => sum + pointsFrom(item, challenge), 0),
         solvedBy: solves.map(item => usernames.get(String(item.user)) || 'Deleted user'),
         solvedAt: solves[0]?.submittedAt || null,
         addedByAdmin: solves.some(item => item.submittedFlag === ADMIN_SOLVE_MARKER)
@@ -77,7 +82,7 @@ async function getTeamScoreDetails(teamId) {
       _id: member._id,
       username: member.username,
       isCaptain: String(member._id) === String(team.captain),
-      canBeCredited: member.role === 'user',
+      canBeCredited: member.role === 'user' && !isBannedUser(member),
       points: memberTotals.get(String(member._id))?.points || 0,
       solved: memberTotals.get(String(member._id))?.solved || 0,
       hints: hints.filter(hint => String(hint.userId) === String(member._id)).length
@@ -128,13 +133,17 @@ async function markSolved(teamId, challengeId, { userId, ipAddress } = {}) {
       const challenge = await Challenge.findById(challengeId).session(session);
       if (!challenge) throw httpError(404, 'Challenge not found');
 
-      const members = await User.find({ team: team._id }).select('_id role').session(session).lean();
-      const players = members.filter(member => member.role === 'user');
+      const members = await User.find({ team: team._id })
+        .select('_id role banned isBlocked').session(session).lean();
+      const players = members.filter(member => member.role === 'user' && !isBannedUser(member));
       const existing = await Submission.exists({
-        ...await getTeamSolveQuery(team._id, session),
-        challenge: challenge._id
+        team: team._id,
+        challenge: challenge._id,
+        isCorrect: true
       }).session(session);
-      if (existing) throw httpError(409, 'This team has already solved that challenge');
+      if (existing) {
+        throw httpError(409, 'This team already has a solve for that challenge. Mark it unsolved first to replace it.');
+      }
 
       // A player has one solve per challenge, so prefer someone who has none yet.
       const ownSolves = await Submission.find({
