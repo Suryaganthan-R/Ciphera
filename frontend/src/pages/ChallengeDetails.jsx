@@ -106,12 +106,14 @@ const SolvesModal = ({ challenge, onClose }) => {
   );
 };
 
-const FlagSubmissionModal = ({ challenge, onClose, onSubmit }) => {
+const FlagSubmissionModal = ({ challenge, isSolved, onClose, onSubmit }) => {
   const [flag, setFlag] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { isEnded, isPaused, isNotStarted, isSubmissionAllowed } = useEventState();
+  // Solved here, or by a teammate while this window is open
+  const isLocked = isSolved || Boolean(success);
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -123,6 +125,7 @@ const FlagSubmissionModal = ({ challenge, onClose, onSubmit }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isLocked) return;
     if (!flag.trim()) {
       setError('Please enter a flag');
       return;
@@ -255,7 +258,7 @@ const FlagSubmissionModal = ({ challenge, onClose, onSubmit }) => {
                     onChange={(e) => setFlag(e.target.value)}
                     placeholder="SECE{flag_here}"
                     autoComplete="off"
-                    disabled={isSubmitting || success || !isSubmissionAllowed}
+                    disabled={isSubmitting || isLocked || !isSubmissionAllowed}
                     className="htb-flag-input"
                   />
                   <div className="htb-input-border"></div>
@@ -264,9 +267,14 @@ const FlagSubmissionModal = ({ challenge, onClose, onSubmit }) => {
 
               <ShinyButton
                 type="submit"
-                disabled={isSubmitting || Boolean(success) || !isSubmissionAllowed}
+                disabled={isSubmitting || isLocked || !isSubmissionAllowed}
               >
-                {isNotStarted ? (
+                {isLocked ? (
+                  <>
+                    <CheckCircle2 size={18} />
+                    Solved
+                  </>
+                ) : isNotStarted ? (
                   'Event Not Started'
                 ) : isPaused ? (
                   'Event Paused'
@@ -388,8 +396,46 @@ function ChallengeDetails() {
   const [showSolvesModal, setShowSolvesModal] = useState(false);
   const [showHintConfirm, setShowHintConfirm] = useState(false);
   const [pendingHintUnlock, setPendingHintUnlock] = useState(null);
+  // Challenge whose correct flag was entered on this page. Admin solves are not saved,
+  // so this is what keeps the button locked for them.
+  const [solvedHereId, setSolvedHereId] = useState(null);
   const { user, isAuthenticated, updateUserData } = useContext(AuthContext);
-  const { eventState, isEnded, isPaused, isNotStarted } = useEventState();
+  const { eventState, isEnded, isPaused, isNotStarted, isSubmissionAllowed } = useEventState();
+
+  // The server's flag also covers solves by teammates; the user list is the fallback
+  const isSolved = Boolean(challenge) && (solvedHereId === challenge._id
+    || (challenge.isSolved ?? Boolean(user?.solvedChallenges?.some(
+      solved => (solved?._id || solved) === challenge._id
+    ))));
+
+  // While unsolved, watch for a teammate solving it so the button locks without a reload
+  const watchedId = !isSolved && user?.team && isSubmissionAllowed ? challenge?._id : null;
+
+  useEffect(() => {
+    if (!watchedId) return undefined;
+    let active = true;
+
+    const checkSolved = async () => {
+      if (document.hidden) return;
+      try {
+        const res = await axios.get(`/api/challenges/${watchedId}`);
+        if (!active || !res.data.data.isSolved) return;
+        setChallenge(res.data.data);
+        setUnlockedHints(res.data.unlockedHints || []);
+        await updateUserData();
+      } catch (err) {
+        console.error('Error checking for a team solve:', err);
+      }
+    };
+
+    const interval = setInterval(checkSolved, 10000);
+    window.addEventListener('focus', checkSolved);
+    return () => {
+      active = false;
+      clearInterval(interval);
+      window.removeEventListener('focus', checkSolved);
+    };
+  }, [watchedId, updateUserData]);
 
   useEffect(() => {
     let active = true;
@@ -451,6 +497,9 @@ function ChallengeDetails() {
         { flag }
       );
 
+      // Lock at once, even if the refresh below fails
+      setSolvedHereId(challenge._id);
+
       // Refetch challenge data to update solved status
       try {
         const challengeRes = await axios.get(`/api/challenges/${challenge._id}`);
@@ -467,6 +516,11 @@ function ChallengeDetails() {
         throw new Error(err.message);
       }
       
+      // A teammate got there first
+      if (err.response?.data?.message?.includes('already been solved')) {
+        setSolvedHereId(challenge._id);
+      }
+
       // Handle backend error responses (both 'error' and 'message' fields)
       if (err.response?.data?.error) {
         throw new Error(err.response.data.error);
@@ -611,11 +665,6 @@ function ChallengeDetails() {
       </div>
     );
   }
-
-  // The server's flag also covers solves by teammates; the user list is the fallback
-  const isSolved = challenge.isSolved ?? Boolean(user?.solvedChallenges?.some(
-    solved => (solved?._id || solved) === challenge._id
-  ));
 
   return (
     <div className="htb-challenge-container">
@@ -857,6 +906,7 @@ function ChallengeDetails() {
       {showModal && challenge && (
         <FlagSubmissionModal
           challenge={challenge}
+          isSolved={isSolved}
           onClose={closeModal}
           onSubmit={submitFlag}
         />
