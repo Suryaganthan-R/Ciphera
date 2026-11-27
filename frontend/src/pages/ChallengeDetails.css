@@ -618,6 +618,56 @@
   overscroll-behavior: contain;
 }
 
+/*
+ * Flag window layout. All page styles share one bundle, and admin pages define the same
+ * class names, so these rules are scoped to this window to override them.
+ * The status message has its own row, so it can never push the close button out.
+ */
+.htb-modal-content.htb-flag-modal-content {
+  padding: 0;
+}
+
+.htb-flag-modal-content .htb-modal-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px 16px;
+  margin: 0;
+  padding: 20px 24px;
+}
+
+.htb-flag-modal-content .htb-modal-title {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+}
+
+.htb-flag-modal-content .htb-modal-close {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.htb-flag-modal-content .htb-modal-status {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+}
+
+.htb-flag-modal-content .htb-status-badge {
+  justify-content: center;
+  width: 100%;
+  white-space: normal;
+  text-align: center;
+  transform: none;
+}
+
+.htb-flag-modal-content .htb-status-badge svg {
+  flex-shrink: 0;
+}
+
 .htb-modal-header {
   display: flex;
   align-items: center;
