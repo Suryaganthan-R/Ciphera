@@ -23,9 +23,6 @@ importers:
       '@mui/x-charts':
         specifier: ^8.28.2
         version: 8.28.2(@emotion/react@11.14.0(@types/react@19.2.14)(react@18.3.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.14)(react@18.3.1))(@types/react@19.2.14)(react@18.3.1))(@mui/material@7.3.9(@emotion/react@11.14.0(@types/react@19.2.14)(react@18.3.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.14)(react@18.3.1))(@types/react@19.2.14)(react@18.3.1))(@types/react@19.2.14)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@mui/system@7.3.9(@emotion/react@11.14.0(@types/react@19.2.14)(react@18.3.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.14)(react@18.3.1))(@types/react@19.2.14)(react@18.3.1))(@types/react@19.2.14)(react@18.3.1))(@types/react@19.2.14)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      '@paper-design/shaders':
-        specifier: 0.0.82
-        version: 0.0.82
       '@react-oauth/google':
         specifier: ^0.13.5
         version: 0.13.5(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -1094,9 +1091,6 @@ packages:
   '@nodelib/fs.walk@1.2.8':
     resolution: {integrity: sha512-oGB+UxlgWcgQkgwo8GcEGwemoTFt3FIO9ababBmaGwXIoBKZ+GTy0pP185beGg7Llih/NSHSV2XAs1lnznocSg==}
     engines: {node: '>= 8'}
-
-  '@paper-design/shaders@0.0.82':
-    resolution: {integrity: sha512-eCxYQrrCxRVc4KG8sLSQecsq8Ymstbaq/FqZjq/fhOa6UiR1ZZfdMO5IJpHmwL0GYmfzvZVQ4l8ZOLux0uLVdg==}
 
   '@polka/url@1.0.0-next.29':
     resolution: {integrity: sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww==}
@@ -4244,8 +4238,6 @@ snapshots:
     dependencies:
       '@nodelib/fs.scandir': 2.1.5
       fastq: 1.20.1
-
-  '@paper-design/shaders@0.0.82': {}
 
   '@polka/url@1.0.0-next.29': {}
 
