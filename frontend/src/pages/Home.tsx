@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import heroImage from '../../../pic.png';
+import InteractiveBackground from '../components/InteractiveBackground';
 import AuthContext from '../context/AuthContext';
 import { useSiteConfig } from '../context/SiteConfigContext';
 
@@ -46,6 +47,7 @@ export default function Home() {
       <div className="pointer-events-none absolute left-[8%] top-[10%] h-56 w-56 rounded-full bg-[#356b3f]/40 blur-3xl" />
       <div className="pointer-events-none absolute left-1/2 top-[-10%] h-[26rem] w-[26rem] -translate-x-1/2 rounded-full bg-[#528a43]/18 blur-3xl" />
       <div className="pointer-events-none absolute bottom-[12%] right-[8%] h-72 w-72 rounded-full bg-[#203f29]/35 blur-3xl" />
+      <InteractiveBackground />
 
       <section className="relative z-10 flex min-h-[calc(100vh-5.5rem)] w-full items-start justify-center pt-[3.55rem] sm:pt-[3.95rem]">
         <div className="mx-auto grid w-full max-w-7xl gap-8 px-6 py-2 sm:px-8 sm:py-4 lg:grid-cols-[1fr_1fr] lg:items-start lg:px-12 lg:py-4">

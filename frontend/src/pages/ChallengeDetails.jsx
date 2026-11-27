@@ -8,6 +8,7 @@ import AuthContext from '../context/AuthContext'
 import { useEventState } from '../hooks/useEventState'
 import { Loading } from '../components/ui'
 import { ShinyButton } from '../components/ui/shiny-button'
+import InteractiveBackground from '../components/InteractiveBackground'
 import './ChallengeDetails.css'
 
 // Set default axios timeout for this component
@@ -619,6 +620,7 @@ function ChallengeDetails() {
   return (
     <div className="htb-challenge-container">
       <div className="htb-challenge-grid-bg"></div>
+      <InteractiveBackground />
       
       {(isEnded || isPaused || isNotStarted) && (
         <motion.div 
