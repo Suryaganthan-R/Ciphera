@@ -1,5 +1,6 @@
 const express = require('express');
 const { listUnlockedHints } = require('../utils/unlockedHints');
+const { getUserRawScore, getSolvedChallengeIds } = require('../utils/teamScore');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const config = require('../config');
@@ -1066,7 +1067,6 @@ router.get('/me', protect, async (req, res) => {
     // Use lean() for faster queries and populate only needed fields
     const user = await User.findById(req.user._id)
       .populate('team', 'name')
-      .populate('solvedChallenges', 'title category points')
       .lean();
 
     if (!user) {
@@ -1092,8 +1092,14 @@ router.get('/me', protect, async (req, res) => {
       });
     }
 
-    // Use stored points (updated on submission) instead of recalculating
-    const totalPoints = Math.max(0, user.points || 0);
+    const totalPoints = Math.max(0, await getUserRawScore(user._id));
+
+    // Challenges closed to this player: their own solves and their current team's
+    const solvedIds = await getSolvedChallengeIds(user._id, user.team?._id);
+    const solvedChallenges = await require('../models/Challenge')
+      .find({ _id: { $in: solvedIds } })
+      .select('title category points')
+      .lean();
 
     // Get rank from Redis cache (1 minute TTL) or calculate
     let rank = null;
@@ -1140,7 +1146,7 @@ router.get('/me', protect, async (req, res) => {
         points: totalPoints,
         rank: rank,
         team: teamData,
-        solvedChallenges: user.solvedChallenges || [],
+        solvedChallenges,
         unlockedHints: formattedHints,
         isBlocked: user.isBlocked
       }

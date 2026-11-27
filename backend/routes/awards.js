@@ -5,6 +5,7 @@ const User = require('../models/User');
 const Team = require('../models/Team');
 const { protect, authorize } = require('../middleware/auth');
 const { clearScoreboardCache } = require('../utils/redis');
+const { refreshUserPoints } = require('../utils/teamScore');
 
 /**
  * @route   GET /api/awards
@@ -126,6 +127,7 @@ router.post('/', protect, authorize('admin'), async (req, res) => {
     }
 
     // Verify user/team exists
+    let creditedTeam = null;
     if (userId) {
       const userExists = await User.findById(userId);
       if (!userExists) {
@@ -134,6 +136,8 @@ router.post('/', protect, authorize('admin'), async (req, res) => {
           error: 'User not found'
         });
       }
+      // The player's current team receives this award too, and keeps it
+      creditedTeam = userExists.team || null;
     }
 
     if (teamId) {
@@ -150,6 +154,7 @@ router.post('/', protect, authorize('admin'), async (req, res) => {
     const award = await Award.create({
       user: userId || null,
       team: teamId || null,
+      creditedTeam,
       name,
       value: parseInt(value),
       description: description || '',
@@ -162,13 +167,15 @@ router.post('/', protect, authorize('admin'), async (req, res) => {
       { path: 'team', select: 'teamName' }
     ]);
 
+    if (userId) await refreshUserPoints([userId]);
+
     // Clear scoreboard cache
     await clearScoreboardCache();
     
-    // Invalidate team points cache if award is for a team
-    if (teamId) {
+    // Invalidate team points cache if the award affects a team
+    if (teamId || creditedTeam) {
       const { invalidateTeamPoints } = require('../utils/teamPointsCache');
-      await invalidateTeamPoints(teamId);
+      await invalidateTeamPoints(teamId || creditedTeam);
     }
 
     res.status(201).json({
@@ -209,6 +216,8 @@ router.put('/:id', protect, authorize('admin'), async (req, res) => {
     if (icon !== undefined) award.icon = icon;
 
     await award.save();
+    // award.user is not populated yet, so this is the plain id
+    if (award.user) await refreshUserPoints([award.user]);
     await award.populate([
       { path: 'user', select: 'username email' },
       { path: 'team', select: 'teamName' }
@@ -217,10 +226,11 @@ router.put('/:id', protect, authorize('admin'), async (req, res) => {
     // Clear scoreboard cache
     await clearScoreboardCache();
     
-    // Invalidate team points cache if award is for a team
-    if (award.team) {
+    // Invalidate team points cache if the award affects a team
+    const affectedTeam = award.team?._id || award.creditedTeam;
+    if (affectedTeam) {
       const { invalidateTeamPoints } = require('../utils/teamPointsCache');
-      await invalidateTeamPoints(award.team);
+      await invalidateTeamPoints(affectedTeam);
     }
 
     res.json({
@@ -252,9 +262,10 @@ router.delete('/:id', protect, authorize('admin'), async (req, res) => {
     }
     
     // Store team ID before deletion for cache invalidation
-    const teamId = award.team;
+    const teamId = award.team || award.creditedTeam;
 
     await award.deleteOne();
+    if (award.user) await refreshUserPoints([award.user]);
 
     // Clear scoreboard cache
     await clearScoreboardCache();

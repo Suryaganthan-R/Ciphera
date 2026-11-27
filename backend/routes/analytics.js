@@ -5,6 +5,8 @@ const User = require('../models/User');
 const Challenge = require('../models/Challenge');
 const { protect, authorize } = require('../middleware/auth');
 const { getCacheStats } = require('../utils/teamPointsCache');
+const { aggregateTeamStandings } = require('../utils/teamStandings');
+const { getNonPlayerIds } = require('../utils/teamScore');
 
 // @route   GET /api/analytics/cache-stats
 // @desc    Get cache performance statistics
@@ -553,93 +555,57 @@ router.get('/progression/matrix', protect, authorize('admin'), async (req, res) 
     let scoreboard = [];
 
     if (mode === 'teams') {
-      const topTeams = await Team.find({
-        hidden: { $ne: true },
-        banned: { $ne: true }
-      })
-        .select('_id name points')
-        .sort({ points: -1, createdAt: 1, _id: 1 })
-        .limit(100)
-        .lean();
-
-      const teamIds = topTeams.map((team) => team._id);
+      // Same scores and order as the public team scoreboard
+      const topTeams = await aggregateTeamStandings(false, null, 100);
       const matrixByTeam = new Map();
 
-      topTeams.forEach((team) => {
-        matrixByTeam.set(String(team._id), {
-          solves: new Set(),
-          attempts: new Set()
-        });
-      });
-
-      if (teamIds.length > 0) {
-        const teamObjectIds = teamIds.map((id) => new mongoose.Types.ObjectId(id));
-
-        const teamMembers = await User.find({
-          role: 'user',
-          hidden: { $ne: true },
-          banned: { $ne: true },
-          team: { $in: teamObjectIds }
-        })
-          .select('_id team')
-          .lean();
-
-        const memberIds = teamMembers.map((member) => member._id);
-        const userToTeam = new Map(teamMembers.map((member) => [String(member._id), String(member.team)]));
-
-        if (memberIds.length > 0) {
-          const matrixRows = await Submission.aggregate([
-            {
-              $match: {
-                user: { $in: memberIds.map((id) => new mongoose.Types.ObjectId(id)) }
-              }
-            },
-            {
-              $group: {
-                _id: '$user',
-                solves: {
-                  $addToSet: {
-                    $cond: [
-                      { $eq: ['$isCorrect', true] },
-                      '$challenge',
-                      '$$REMOVE'
-                    ]
-                  }
-                },
-                attempts: {
-                  $addToSet: {
-                    $cond: [
-                      { $eq: ['$isCorrect', false] },
-                      '$challenge',
-                      '$$REMOVE'
-                    ]
-                  }
+      if (topTeams.length > 0) {
+        const matrixRows = await Submission.aggregate([
+          {
+            $match: {
+              team: { $in: topTeams.map((team) => new mongoose.Types.ObjectId(team.account_id)) },
+              user: { $nin: await getNonPlayerIds() }
+            }
+          },
+          {
+            $group: {
+              _id: '$team',
+              solves: {
+                $addToSet: {
+                  $cond: [
+                    { $eq: ['$isCorrect', true] },
+                    '$challenge',
+                    '$$REMOVE'
+                  ]
+                }
+              },
+              attempts: {
+                $addToSet: {
+                  $cond: [
+                    { $eq: ['$isCorrect', false] },
+                    '$challenge',
+                    '$$REMOVE'
+                  ]
                 }
               }
             }
-          ]);
-
-          for (const row of matrixRows) {
-            const userId = String(row._id);
-            const teamId = userToTeam.get(userId);
-            if (!teamId || !matrixByTeam.has(teamId)) continue;
-
-            const teamMatrix = matrixByTeam.get(teamId);
-            (row.solves || []).forEach((challengeId) => teamMatrix.solves.add(String(challengeId)));
-            (row.attempts || []).forEach((challengeId) => teamMatrix.attempts.add(String(challengeId)));
           }
+        ]);
+
+        for (const row of matrixRows) {
+          matrixByTeam.set(String(row._id), row);
         }
       }
 
       scoreboard = topTeams.map((team, index) => {
-        const matrix = matrixByTeam.get(String(team._id)) || { solves: new Set(), attempts: new Set() };
+        const matrix = matrixByTeam.get(team.account_id);
         return {
-          id: String(team._id),
+          id: team.account_id,
           name: team.name,
-          score: team.points || 0,
+          score: team.score,
           place: index + 1,
-          solves: Array.from(matrix.solves),
-          attempts: Array.from(matrix.attempts)
+          solves: (matrix?.solves || []).map((challengeId) => String(challengeId)),
+          attempts: (matrix?.attempts || []).map((challengeId) => String(challengeId))
         };
       });
     } else {

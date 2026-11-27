@@ -92,6 +92,12 @@ const ChallengeSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   }],
+  // Incremented while recalculating a dynamic value so recalculations run one at a time.
+  valueRevision: {
+    type: Number,
+    default: 0,
+    select: false
+  },
   isVisible: {
     type: Boolean,
     default: true,
@@ -123,8 +129,8 @@ ChallengeSchema.methods.getCurrentValue = function () {
   }
 
   // For dynamic challenges, we need initial, minimum, and decay
-  const initial = this.initial || this.points;
-  const minimum = this.minimum || this.points;
+  const initial = this.initial ?? this.points;
+  const minimum = this.minimum ?? this.points; // 0 is a valid minimum
   let decay = this.decay || 0;
   const solveCount = this.solvedBy?.length || 0;
 

@@ -10,6 +10,7 @@ const Category = require('../models/Category');
 const Challenge = require('../models/Challenge');
 const Submission = require('../models/Submission');
 const Award = require('../models/Award');
+const { getTeamRawScore } = require('../utils/teamScore');
 const Notice = require('../models/Notice');
 const EventState = require('../models/EventState');
 const { protect, authorize } = require('../middleware/auth');
@@ -549,11 +550,12 @@ router.get('/backup/csv/:type', protect, authorize('admin'), async (req, res) =>
       }));
     } else if (type === 'teams') {
       const teams = await Team.find({}).select('_id name description points hidden banned verified').lean();
-      rows = teams.map((t) => ({
+      const scores = await Promise.all(teams.map((t) => getTeamRawScore(t._id)));
+      rows = teams.map((t, index) => ({
         _id: t._id,
         name: t.name,
         description: t.description || '',
-        points: t.points || 0,
+        points: Math.max(0, scores[index]),
         hidden: !!t.hidden,
         banned: !!t.banned,
         verified: !!t.verified

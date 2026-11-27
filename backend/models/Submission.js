@@ -11,6 +11,12 @@ const SubmissionSchema = new mongoose.Schema({
     ref: 'Challenge',
     required: true
   },
+  // Team the player belonged to when submitting; the solve counts for this team only.
+  team: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Team',
+    default: null
+  },
   submittedFlag: {
     type: String,
     required: true
@@ -42,6 +48,12 @@ SubmissionSchema.index({ user: 1, challenge: 1, isCorrect: 1 }, {
   unique: true, 
   partialFilterExpression: { isCorrect: true },
   name: 'unique_correct_submission'
+});
+// A team can score each challenge only once, even if two members submit at the same moment.
+SubmissionSchema.index({ team: 1, challenge: 1 }, {
+  unique: true,
+  partialFilterExpression: { isCorrect: true, team: { $type: 'objectId' } },
+  name: 'unique_team_correct_submission'
 });
 
 module.exports = mongoose.model('Submission', SubmissionSchema);

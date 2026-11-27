@@ -14,6 +14,8 @@ const Award = require('../models/Award');
 const User = require('../models/User');
 const Team = require('../models/Team');
 const Submission = require('../models/Submission');
+const mongoose = require('mongoose');
+const { refreshUserPoints } = require('../utils/teamScore');
 
 /**
  * Calculate current value of a challenge based on solve count
@@ -29,8 +31,8 @@ function calculateChallengeValue(challenge, solveCount = null) {
   }
 
   // For dynamic challenges
-  const initial = challenge.initial || challenge.points;
-  const minimum = challenge.minimum || challenge.points;
+  const initial = challenge.initial ?? challenge.points;
+  const minimum = challenge.minimum ?? challenge.points; // 0 is a valid minimum
   let decay = challenge.decay || 0;
 
   // If solveCount not provided, use challenge's solvedBy length
@@ -65,13 +67,13 @@ function calculateChallengeValue(challenge, solveCount = null) {
 /**
  * Get solve count for a challenge (excluding hidden/banned users)
  * @param {String} challengeId - Challenge ID
+ * @param {Object} session - Optional MongoDB session
  * @returns {Promise<Number>} Solve count
  */
-async function getValidSolveCount(challengeId) {
-  const challenge = await Challenge.findById(challengeId).populate({
-    path: 'solvedBy',
-    select: 'hidden banned role'
-  });
+async function getValidSolveCount(challengeId, session = null) {
+  const challenge = await Challenge.findById(challengeId)
+    .populate({ path: 'solvedBy', select: 'hidden banned role' })
+    .session(session);
 
   if (!challenge) return 0;
 
@@ -84,33 +86,56 @@ async function getValidSolveCount(challengeId) {
 }
 
 /**
- * Update challenge value after a new solve (CTFd-style)
- * Only updates challenge.points field, scores calculated dynamically via JOIN
+ * Recalculate a dynamic challenge's value (CTFd-style).
+ * Call this only after the solve has been committed: it runs in its own transaction.
+ * Only updates challenge.points; scores are calculated dynamically via JOIN.
  * @param {String} challengeId - Challenge ID
  * @returns {Promise<Number>} New challenge value
  */
 async function updateChallengeValue(challengeId) {
-  const challenge = await Challenge.findById(challengeId);
-  if (!challenge) {
+  const existing = await Challenge.findById(challengeId);
+  if (!existing) {
     throw new Error('Challenge not found');
   }
 
   // Only update for dynamic challenges
-  if (challenge.function === 'static' || !challenge.function) {
-    return challenge.points;
+  if (existing.function === 'static' || !existing.function) {
+    return existing.points;
   }
 
-  const solveCount = await getValidSolveCount(challengeId);
-  const newValue = calculateChallengeValue(challenge, solveCount);
+  const session = await mongoose.startSession();
+  let value = existing.points;
+  let changed = false;
+  let solverIds = [];
+  try {
+    await session.withTransaction(async () => {
+      // Writing first locks the challenge, so the solve count read below stays current.
+      const challenge = await Challenge.findByIdAndUpdate(
+        challengeId,
+        { $inc: { valueRevision: 1 } },
+        { new: true, session }
+      );
+      if (!challenge) throw new Error('Challenge not found');
 
-  // Update the challenge's points field with the new value
-  // This automatically updates all users' scores (calculated via JOIN)
-  challenge.points = newValue;
-  await challenge.save();
+      const solveCount = await getValidSolveCount(challengeId, session);
+      value = calculateChallengeValue(challenge, solveCount);
+      changed = value !== challenge.points;
+      solverIds = challenge.solvedBy || [];
+      if (changed) {
+        await Challenge.updateOne({ _id: challengeId }, { $set: { points: value } }, { session });
+      }
+    });
+  } finally {
+    await session.endSession();
+  }
 
-  console.log(`[CTFd Scoring] Challenge "${challenge.title}" value updated: ${newValue} pts (${solveCount} solves)`);
+  // Every solver's score changes with the value.
+  if (changed) {
+    await refreshUserPoints(solverIds);
+    console.log(`[CTFd Scoring] Challenge "${existing.title}" value is now ${value} pts`);
+  }
 
-  return newValue;
+  return value;
 }
 
 module.exports = {

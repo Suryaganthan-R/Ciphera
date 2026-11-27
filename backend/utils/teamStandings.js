@@ -1,6 +1,7 @@
 const Team = require('../models/Team');
 const Submission = require('../models/Submission');
 const Award = require('../models/Award');
+const { getNonPlayerIds } = require('./teamScore');
 
 const compareTeamStandings = (a, b) => {
   if (b.score !== a.score) return b.score - a.score;
@@ -11,7 +12,12 @@ const compareTeamStandings = (a, b) => {
 };
 
 async function aggregateTeamStandings(isAdmin = false, freezeTime = null, limit = null) {
-  const matchStage = { isCorrect: true };
+  // Solves count for the team recorded on them, not the solver's current team.
+  const matchStage = {
+    isCorrect: true,
+    team: { $type: 'objectId' },
+    user: { $nin: await getNonPlayerIds() }
+  };
   if (freezeTime) matchStage.submittedAt = { $lt: new Date(freezeTime) };
 
   const teamSolves = await Submission.aggregate([
@@ -27,46 +33,28 @@ async function aggregateTeamStandings(isAdmin = false, freezeTime = null, limit 
     { $unwind: '$challengeData' },
     { $match: { 'challengeData.points': { $ne: 0 } } },
     {
-      $lookup: {
-        from: 'users',
-        localField: 'user',
-        foreignField: '_id',
-        as: 'userInfo'
-      }
-    },
-    { $unwind: '$userInfo' },
-    { $match: { 'userInfo.role': 'user', 'userInfo.team': { $exists: true, $ne: null } } },
-    {
       $group: {
-        _id: '$userInfo.team',
+        _id: '$team',
         score: { $sum: '$challengeData.points' },
         lastSolve: { $max: '$submittedAt' }
       }
     }
   ]);
 
-  const teamAwardMatch = { value: { $ne: 0 }, team: { $exists: true, $ne: null } };
-  if (freezeTime) teamAwardMatch.date = { $lt: new Date(freezeTime) };
-  const directAwards = await Award.aggregate([
-    { $match: teamAwardMatch },
-    { $group: { _id: '$team', score: { $sum: '$value' }, lastAward: { $max: '$date' } } }
-  ]);
-
-  const userAwardMatch = { value: { $ne: 0 }, user: { $exists: true, $ne: null } };
-  if (freezeTime) userAwardMatch.date = { $lt: new Date(freezeTime) };
-  const memberAwards = await Award.aggregate([
-    { $match: userAwardMatch },
+  const awardMatch = {
+    value: { $ne: 0 },
+    $or: [{ team: { $type: 'objectId' } }, { creditedTeam: { $type: 'objectId' } }]
+  };
+  if (freezeTime) awardMatch.date = { $lt: new Date(freezeTime) };
+  const teamAwards = await Award.aggregate([
+    { $match: awardMatch },
     {
-      $lookup: {
-        from: 'users',
-        localField: 'user',
-        foreignField: '_id',
-        as: 'userInfo'
+      $group: {
+        _id: { $ifNull: ['$team', '$creditedTeam'] },
+        score: { $sum: '$value' },
+        lastAward: { $max: '$date' }
       }
-    },
-    { $unwind: '$userInfo' },
-    { $match: { 'userInfo.team': { $exists: true, $ne: null } } },
-    { $group: { _id: '$userInfo.team', score: { $sum: '$value' }, lastAward: { $max: '$date' } } }
+    }
   ]);
 
   const scoreByTeam = new Map();
@@ -82,8 +70,7 @@ async function aggregateTeamStandings(isAdmin = false, freezeTime = null, limit 
   };
 
   teamSolves.forEach(row => merge(row._id, row.score, row.lastSolve, true));
-  directAwards.forEach(row => merge(row._id, row.score, row.lastAward));
-  memberAwards.forEach(row => merge(row._id, row.score, row.lastAward));
+  teamAwards.forEach(row => merge(row._id, row.score, row.lastAward));
 
   const teamQuery = { banned: { $ne: true } };
   if (!isAdmin) teamQuery.hidden = { $ne: true };

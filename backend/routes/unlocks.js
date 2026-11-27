@@ -26,14 +26,14 @@ const isObjectId = (id) => /^[0-9a-fA-F]{24}$/.test(String(id || ''));
 // @access  Private
 router.get('/balance', protect, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select('team solvedChallenges');
+    const user = await User.findById(req.user._id).select('team');
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
-    const team = user.team ? await Team.findById(user.team).select('solvedChallenges') : null;
+    const team = user.team ? await Team.findById(user.team).select('_id') : null;
     const score = team ? await getTeamRawScore(team._id) : await getUserRawScore(user._id);
     const solved = isObjectId(req.query.challenge)
-      ? await hasSolved(req.query.challenge, user, team)
+      ? await hasSolved(req.query.challenge, user._id, team?._id)
       : false;
 
     res.set('Cache-Control', 'no-store');
@@ -96,7 +96,7 @@ router.post('/', protect, checkEventNotEnded, async (req, res) => {
         : null;
       teamId = team?._id || null;
 
-      if (await hasSolved(challenge._id, user, team, session)) {
+      if (await hasSolved(challenge._id, user._id, team?._id, session)) {
         throw httpError(400, 'This challenge is already solved, so its hints can no longer be unlocked.');
       }
 
