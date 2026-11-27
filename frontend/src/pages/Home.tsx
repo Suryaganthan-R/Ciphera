@@ -17,6 +17,43 @@ const heroMetrics = [
   { value: 'Squads', label: 'team operations' },
 ];
 
+// Shown in the empty gutters beside the hero, on wide screens only
+const sideQuotes = [
+  {
+    text: "Your password is 'password123'. We didn't even have to try.",
+    position: 'left-4 top-[14%] w-[220px]',
+  },
+  {
+    text: 'You copy-pasted the exploit and crashed your own laptop. Legendary.',
+    position: 'left-4 top-[62%] w-[220px]',
+  },
+  {
+    text: 'sudo get-good\nPermission denied: skill not found.',
+    position: 'right-3 top-[24%] w-[min(220px,calc(50vw_-_700px))]',
+  },
+  {
+    text: 'Your code has more holes than our easiest challenge.',
+    position: 'right-3 top-[68%] w-[min(220px,calc(50vw_-_700px))]',
+  },
+];
+
+const bottomQuotes = [
+  "There's no place like 127.0.0.1. Stay there until you learn SQL.",
+  '99 bugs in your code. Patch one, 127 more appear.',
+  'Even the honeypot felt sorry for you.',
+];
+
+function CyberQuote({ text, className = '' }: { text: string; className?: string }) {
+  return (
+    <figure
+      className={`rounded-[0.95rem] border border-[#314d31] bg-[#172b1e]/45 px-4 py-3 font-mono text-xs leading-5 text-[#c9d9b2] backdrop-blur-xl ${className}`}
+    >
+      <span aria-hidden="true" className="mr-2 text-[#d7b84b]">{'>_'}</span>
+      <blockquote className="inline whitespace-pre-line">{text}</blockquote>
+    </figure>
+  );
+}
+
 export default function Home() {
   const navigate = useNavigate();
   const { isAuthenticated } = useContext(
@@ -131,10 +168,10 @@ export default function Home() {
             initial={{ opacity: 0, y: 36 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.72, delay: 0.08, ease: [0.16, 1, 0.3, 1] }}
-            className="relative flex items-start justify-center lg:translate-x-12 lg:max-w-[450px]"
+            className="relative flex items-start justify-center lg:-mt-6 lg:max-w-[clamp(450px,calc((100vh_-_190px)*0.91),576px)] xl:left-[24px] 2xl:left-[64px]"
           >
             <div className="absolute inset-x-8 top-1/2 h-64 w-full -translate-y-12 rounded-full bg-[#4f9b50]/30 blur-3xl" />
-            <div className="relative w-full max-w-[480px]">
+            <div className="relative w-full max-w-[480px] lg:max-w-none">
               <motion.div
                 aria-hidden="true"
                 className="pointer-events-none absolute -inset-3 rounded-[58px] border border-[#79b856]/70"
@@ -149,7 +186,7 @@ export default function Home() {
                 }}
                 transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}
               />
-              <div className="relative aspect-[4/5] w-full max-w-[480px] overflow-hidden rounded-[50px] border border-[#314d31] bg-[linear-gradient(180deg,rgba(8,18,10,0.72)_0%,rgba(4,9,5,0.38)_100%)] p-3 shadow-[0_24px_80px_rgba(53,107,63,0.6)] backdrop-blur-xl lg:h-auto lg:aspect-auto">
+              <div className="relative aspect-[4/5] w-full max-w-[480px] lg:max-w-none overflow-hidden rounded-[50px] border border-[#314d31] bg-[linear-gradient(180deg,rgba(8,18,10,0.72)_0%,rgba(4,9,5,0.38)_100%)] p-3 shadow-[0_24px_80px_rgba(53,107,63,0.6)] backdrop-blur-xl lg:h-auto lg:aspect-auto">
                 <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(79,155,80,0.08)_0%,rgba(0,0,0,0)_55%)]" />
                 <img
                   src={heroImage}
@@ -160,7 +197,21 @@ export default function Home() {
             </div>
           </motion.div>
         </div>
+
+        {sideQuotes.map((quote) => (
+          <CyberQuote
+            key={quote.text}
+            text={quote.text}
+            className={`absolute hidden min-[1700px]:block ${quote.position}`}
+          />
+        ))}
       </section>
+
+      <div className="relative z-10 mx-auto grid w-full max-w-7xl gap-3 px-6 pb-8 pt-4 sm:px-8 md:grid-cols-3 lg:px-12">
+        {bottomQuotes.map((text) => (
+          <CyberQuote key={text} text={text} />
+        ))}
+      </div>
     </div>
   );
 }
