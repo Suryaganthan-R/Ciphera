@@ -11,6 +11,8 @@ const Team = require('../models/Team');
 const Challenge = require('../models/Challenge');
 const { protect } = require('../middleware/auth');
 const { checkEventNotEnded } = require('../middleware/eventState');
+const { requireNotBanned } = require('../utils/access');
+const { isBannedUser, isBannedTeam, isPublicChallenge } = require('../utils/scoringRules');
 
 /**
  * CTFd-style Unlocks API
@@ -19,18 +21,30 @@ const { checkEventNotEnded } = require('../middleware/eventState');
  */
 
 const httpError = (status, message) => Object.assign(new Error(message), { status });
+
+// Why a player cannot buy hints right now, or null. Admins are exempt.
+const hintBarrier = (user, team) => {
+  if (user.role === 'admin') return null;
+  if (isBannedUser(user)) return 'Your account is blocked';
+  if (!team) return 'Join or create a team before unlocking hints';
+  return isBannedTeam(team) ? 'Your team is banned' : null;
+};
 const isObjectId = (id) => /^[0-9a-fA-F]{24}$/.test(String(id || ''));
 
 // @route   GET /api/unlocks/balance
 // @desc    Points available for hints, and whether a challenge is already solved
 // @access  Private
-router.get('/balance', protect, async (req, res) => {
+router.get('/balance', protect, requireNotBanned, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select('team');
+    const user = await User.findById(req.user._id).select('team role banned isBlocked');
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
-    const team = user.team ? await Team.findById(user.team).select('_id') : null;
+    const team = user.team ? await Team.findById(user.team).select('banned isBlocked') : null;
+    const barrier = hintBarrier(user, team);
+    if (barrier) {
+      return res.status(403).json({ success: false, message: barrier });
+    }
     const score = team ? await getTeamRawScore(team._id) : await getUserRawScore(user._id);
     const solved = isObjectId(req.query.challenge)
       ? await hasSolved(req.query.challenge, user._id, team?._id)
@@ -50,7 +64,7 @@ router.get('/balance', protect, async (req, res) => {
 // @route   POST /api/unlocks
 // @desc    Unlock a hint by spending points (CTFd-style)
 // @access  Private
-router.post('/', protect, checkEventNotEnded, async (req, res) => {
+router.post('/', protect, requireNotBanned, checkEventNotEnded, async (req, res) => {
   const { type, challenge: challengeId } = req.body;
   const target = Number(req.body.target);
   const reject = (status, field, message) =>
@@ -69,7 +83,7 @@ router.post('/', protect, checkEventNotEnded, async (req, res) => {
   let session;
   try {
     const challenge = await Challenge.findById(challengeId);
-    if (!challenge) {
+    if (!challenge || (req.user.role !== 'admin' && !isPublicChallenge(challenge))) {
       return reject(404, 'challenge', 'Challenge not found');
     }
     const hint = challenge.hints?.[target];
@@ -95,6 +109,8 @@ router.post('/', protect, checkEventNotEnded, async (req, res) => {
         ? await Team.findByIdAndUpdate(user.team, { $inc: { scoreRevision: 1 } }, { new: true, session })
         : null;
       teamId = team?._id || null;
+      const barrier = hintBarrier(user, team);
+      if (barrier) throw httpError(403, barrier);
 
       if (await hasSolved(challenge._id, user._id, team?._id, session)) {
         throw httpError(400, 'This challenge is already solved, so its hints can no longer be unlocked.');
@@ -132,6 +148,7 @@ router.post('/', protect, checkEventNotEnded, async (req, res) => {
           description: `Hint #${target + 1} unlocked by ${user.username}`,
           value: -cost,
           category: 'hints',
+          challenge: challenge._id,
           icon: 'hint'
         }], { session });
 

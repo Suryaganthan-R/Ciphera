@@ -16,73 +16,31 @@ const Team = require('../models/Team');
 const Submission = require('../models/Submission');
 const mongoose = require('mongoose');
 const { refreshUserPoints } = require('../utils/teamScore');
+const { calculateChallengeValue, countsForValue } = require('../utils/scoringRules');
 
 /**
- * Calculate current value of a challenge based on solve count
- * Uses CTFd-exact formulas with solve_count-1 adjustment
- * @param {Object} challenge - Challenge document
- * @param {Number} solveCount - Number of solves (excluding hidden/banned users)
- * @returns {Number} Current point value
- */
-function calculateChallengeValue(challenge, solveCount = null) {
-  // Static challenges always return base points
-  if (challenge.function === 'static' || !challenge.function) {
-    return challenge.points;
-  }
-
-  // For dynamic challenges
-  const initial = challenge.initial ?? challenge.points;
-  const minimum = challenge.minimum ?? challenge.points; // 0 is a valid minimum
-  let decay = challenge.decay || 0;
-
-  // If solveCount not provided, use challenge's solvedBy length
-  if (solveCount === null) {
-    solveCount = challenge.solvedBy?.length || 0;
-  }
-
-  // CTFd-exact: First solver gets max points (solve_count - 1)
-  const adjustedSolveCount = solveCount > 0 ? solveCount - 1 : 0;
-
-  let value;
-
-  if (challenge.function === 'linear') {
-    // CTFd Linear: value = initial - (decay * (solve_count - 1))
-    value = initial - (decay * adjustedSolveCount);
-  } else if (challenge.function === 'logarithmic') {
-    // CTFd Logarithmic: value = (((minimum - initial) / (decay^2)) * ((solve_count-1)^2)) + initial
-    if (decay === 0) {
-      decay = 1; // Prevent division by zero
-    }
-    value = (((minimum - initial) / Math.pow(decay, 2)) * Math.pow(adjustedSolveCount, 2)) + initial;
-  } else {
-    value = challenge.points; // Fallback
-  }
-
-  // Ensure value doesn't go below minimum
-  value = Math.max(minimum, value);
-
-  return Math.ceil(value); // CTFd uses ceiling
-}
-
-/**
- * Get solve count for a challenge (excluding hidden/banned users)
+ * Number of team solves that lower a challenge's value (excluding hidden/banned accounts)
  * @param {String} challengeId - Challenge ID
  * @param {Object} session - Optional MongoDB session
  * @returns {Promise<Number>} Solve count
  */
 async function getValidSolveCount(challengeId, session = null) {
-  const challenge = await Challenge.findById(challengeId)
-    .populate({ path: 'solvedBy', select: 'hidden banned role' })
-    .session(session);
+  const solves = await Submission.find({ challenge: challengeId, isCorrect: true, team: { $ne: null } })
+    .select('user team')
+    .session(session)
+    .lean();
+  if (!solves.length) return 0;
 
-  if (!challenge) return 0;
+  const users = await User.find({ _id: { $in: solves.map(solve => solve.user) } })
+    .select('role banned isBlocked hidden showInScoreboard').session(session).lean();
+  const teams = await Team.find({ _id: { $in: solves.map(solve => solve.team) } })
+    .select('banned isBlocked hidden').session(session).lean();
+  const userById = new Map(users.map(user => [String(user._id), user]));
+  const teamById = new Map(teams.map(team => [String(team._id), team]));
 
-  // Count only non-hidden, non-banned users
-  const validSolves = challenge.solvedBy?.filter(user =>
-    user.role === 'user' && !user.hidden && !user.banned
-  ).length || 0;
-
-  return validSolves;
+  return solves.filter(solve =>
+    countsForValue(userById.get(String(solve.user)), teamById.get(String(solve.team)))
+  ).length;
 }
 
 /**
@@ -120,7 +78,7 @@ async function updateChallengeValue(challengeId) {
       const solveCount = await getValidSolveCount(challengeId, session);
       value = calculateChallengeValue(challenge, solveCount);
       changed = value !== challenge.points;
-      solverIds = challenge.solvedBy || [];
+      solverIds = await Submission.distinct('user', { challenge: challengeId, isCorrect: true }).session(session);
       if (changed) {
         await Challenge.updateOne({ _id: challengeId }, { $set: { points: value } }, { session });
       }

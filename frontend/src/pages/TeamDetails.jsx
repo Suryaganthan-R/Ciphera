@@ -271,7 +271,7 @@ function TeamDetails() {
             </div>
             <div className="htb-stat-content">
               <div className="htb-stat-label">Total Points</div>
-              <div className="htb-stat-value">{team.points || 0}</div>
+              <div className="htb-stat-value">{team.scoresHidden ? 'Hidden' : team.points || 0}</div>
             </div>
           </motion.div>
 
@@ -298,7 +298,7 @@ function TeamDetails() {
             <div className="htb-stat-content">
               <div className="htb-stat-label">Challenges Solved</div>
               <div className="htb-stat-value">
-                {team.solvedChallenges || 0}
+                {team.scoresHidden ? 'Hidden' : team.solvedChallenges || 0}
               </div>
             </div>
           </motion.div>
@@ -336,7 +336,7 @@ function TeamDetails() {
               <div className="htb-member-stats">
                 <div className="htb-member-stat">
                   <Zap size={16} />
-                  <span>{captain.points || 0} pts</span>
+                  <span>{team.scoresHidden ? 'Hidden' : `${captain.points || 0} pts`}</span>
                 </div>
                 <div className="htb-member-stat">
                   <Award size={16} />
@@ -372,7 +372,7 @@ function TeamDetails() {
                 <div className="htb-member-stats">
                   <div className="htb-member-stat">
                     <Zap size={16} />
-                    <span>{member.points || 0} pts</span>
+                    <span>{team.scoresHidden ? 'Hidden' : `${member.points || 0} pts`}</span>
                   </div>
                   <div className="htb-member-stat">
                     <Award size={16} />

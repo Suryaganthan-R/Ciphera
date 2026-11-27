@@ -40,20 +40,8 @@ function Profile() {
     }
   };
 
-  const getSolvedChallenges = () => {
-    if (!user?.solvedChallenges || !Array.isArray(user.solvedChallenges)) return [];
-    
-    // If solvedChallenges already has challenge details, use them directly
-    if (user.solvedChallenges.length > 0 && user.solvedChallenges[0]?.title) {
-      return user.solvedChallenges;
-    }
-    
-    // Fallback: if it's just IDs, filter from challenges list
-    if (!challenges.length) return [];
-    return challenges.filter(challenge => 
-      user.solvedChallenges.includes(challenge._id)
-    );
-  };
+  // Only this player's own solves, so they match the points shown
+  const getSolvedChallenges = () => (Array.isArray(user?.ownSolves) ? user.ownSolves : []);
 
   if (!authLoading && !isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -130,7 +118,7 @@ function Profile() {
             </div>
             <div className="htb-stat-content">
               <div className="htb-stat-label">Challenges Solved</div>
-              <div className="htb-stat-value">{user.challengesSolvedCount || user.solvedChallenges?.length || 0}</div>
+              <div className="htb-stat-value">{user.ownSolves?.length || 0}</div>
             </div>
           </motion.div>
 

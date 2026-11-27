@@ -1,12 +1,18 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
-const jwt = require('jsonwebtoken');
 const Challenge = require('../models/Challenge');
 const Category = require('../models/Category');
 const User = require('../models/User');
 const Submission = require('../models/Submission');
-const { protect, authorize } = require('../middleware/auth');
+const { protect, authorize, optionalProtect } = require('../middleware/auth');
+const Unlock = require('../models/Unlock');
+const Team = require('../models/Team');
+const Award = require('../models/Award');
+const { getViewer, isAdmin, getFreezeTime, getVisibility, hasEventStarted, requireNotBanned } = require('../utils/access');
+const { getVisibleSolves } = require('../utils/standings');
+const { PUBLIC_CHALLENGE_QUERY, isPublicChallenge, isBannedUser, isBannedTeam, validateScoring } = require('../utils/scoringRules');
+const { takeAttempt, tooMany } = require('../utils/attempts');
 const { checkEventNotEnded, getEventState } = require('../middleware/eventState');
 const { sanitizeInput, validateInput } = require('../middleware/security');
 
@@ -45,43 +51,87 @@ const isValidObjectId = (id) => {
   return id && /^[0-9a-fA-F]{24}$/.test(id);
 };
 
-const filterAdminSolves = async (challenges) => {
-  const challengeList = Array.isArray(challenges) ? challenges : [challenges];
-  const solverIds = [...new Set(challengeList.flatMap(challenge => challenge?.solvedBy || []).map(id => id.toString()))];
-  if (!solverIds.length) return;
+const NOT_STARTED_MESSAGE = 'Challenges unlock when the event starts';
 
-  const users = await User.find({ _id: { $in: solverIds }, role: 'user' }).select('_id').lean();
-  const validSolverIds = new Set(users.map(user => user._id.toString()));
-  challengeList.forEach(challenge => {
-    if (challenge) {
-      challenge.solvedBy = (challenge.solvedBy || []).filter(id => validSolverIds.has(id.toString()));
-    }
+// Locked hint text never leaves the server until the hint is unlocked or free.
+const viewHints = (hints, unlocked) => (hints || []).map((hint, index) => {
+  const open = unlocked.has(index) || hint.cost === 0;
+  return open
+    ? { id: index, content: hint.content, cost: hint.cost, unlocked: true }
+    : { id: index, cost: hint.cost, unlocked: false };
+});
+
+// Hint indexes unlocked by the viewer or their team, grouped by challenge.
+const unlockedHintsFor = async (viewer, challengeIds) => {
+  const byChallenge = new Map();
+  if (!viewer) return byChallenge;
+  const unlocks = await Unlock.find({
+    challenge: { $in: challengeIds },
+    type: 'hints',
+    ...(viewer.team ? { $or: [{ user: viewer._id }, { team: viewer.team }] } : { user: viewer._id })
+  }).select('challenge target').lean();
+  unlocks.forEach(unlock => {
+    const id = String(unlock.challenge);
+    if (!byChallenge.has(id)) byChallenge.set(id, new Set());
+    byChallenge.get(id).add(unlock.target);
+  });
+  return byChallenge;
+};
+
+// Replaces solvedBy with the solvers this viewer may see.
+const showSolvers = async (challenges, viewer) => {
+  const admin = isAdmin(viewer);
+  const solves = await getVisibleSolves(challenges.map(challenge => challenge._id), {
+    viewer,
+    cutoff: admin ? null : await getFreezeTime(),
+    includeHidden: admin
+  });
+  const solvers = new Map();
+  solves.forEach(solve => {
+    if (!solvers.has(solve.challengeId)) solvers.set(solve.challengeId, []);
+    solvers.get(solve.challengeId).push(solve.userId);
+  });
+  challenges.forEach(challenge => {
+    challenge.solvedBy = solvers.get(String(challenge._id)) || [];
   });
 };
 
+// Checks that apply to players before they can use one challenge.
+const playerAccessError = async (challenge, viewer) => {
+  if (isAdmin(viewer)) return null;
+  if (!isPublicChallenge(challenge)) return { status: 404, message: 'Challenge not found' };
+  if (!await hasEventStarted()) return { status: 403, message: NOT_STARTED_MESSAGE };
+  return null;
+};
+
 // @route   GET /api/challenges
-// @desc    Get all challenges with pagination (filtered by visibility for non-admin users)
+// @desc    Get all challenges with pagination (players: visible ones, once the event starts)
 // @access  Private (Authentication required - Security fix for Penligent HIGH vulnerability)
-router.get('/', protect, sanitizeInput, async (req, res) => {
+router.get('/', protect, requireNotBanned, sanitizeInput, async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    // User is guaranteed to exist due to protect middleware
-    const user = req.user;
+    const viewer = await getViewer(req);
+    const admin = isAdmin(viewer);
 
-    const query = {};
-    // Show all challenges to admins, only visible challenges to others
-    const isAdmin = user && user.role === 'admin';
-
-    if (!isAdmin) {
-      query.isVisible = true;
+    if (!admin && !await hasEventStarted()) {
+      return res.json({
+        success: true,
+        notStarted: true,
+        message: NOT_STARTED_MESSAGE,
+        count: 0,
+        total: 0,
+        page,
+        pages: 0,
+        data: [],
+        stats: { solved: 0, remaining: 0, total: 0 }
+      });
     }
 
-    // Solved by this player or their current team
-    const fullUser = await User.findById(user._id).select('team').lean();
-    const userSolvedIds = await getSolvedChallengeIds(user._id, fullUser?.team);
+    const query = admin ? {} : PUBLIC_CHALLENGE_QUERY;
+    const userSolvedIds = await getSolvedChallengeIds(viewer._id, viewer.team);
 
     const total = await Challenge.countDocuments(query);
     const challenges = await Challenge.find(query)
@@ -91,16 +141,16 @@ router.get('/', protect, sanitizeInput, async (req, res) => {
       .sort({ _id: -1 })
       .lean(); // Use lean for better performance
 
-    await filterAdminSolves(challenges);
+    await showSolvers(challenges, viewer);
+    const unlocked = admin ? null : await unlockedHintsFor(viewer, challenges.map(c => c._id));
 
-    // Add current dynamic value and solved status to each challenge
+    // Add current value and solved status to each challenge
     const enrichedChallenges = challenges.map(challenge => {
-      // CTFd-style current value calculation (single source of truth)
-      const solveCount = challenge.solvedBy?.length || 0;
-      const currentValue = scoringService.calculateChallengeValue(challenge, solveCount);
-
-      challenge.currentValue = currentValue;
+      challenge.currentValue = challenge.points;
       challenge.isSolved = userSolvedIds.some(id => id.toString() === challenge._id.toString());
+      if (!admin) {
+        challenge.hints = viewHints(challenge.hints, unlocked.get(String(challenge._id)) || new Set());
+      }
       return challenge;
     });
 
@@ -136,7 +186,7 @@ router.get('/', protect, sanitizeInput, async (req, res) => {
 // @route   GET /api/challenges/:id/solves
 // @desc    Get users/teams who solved a challenge with timestamps
 // @access  Private
-router.get('/:id/solves', protect, async (req, res) => {
+router.get('/:id/solves', protect, requireNotBanned, async (req, res) => {
   try {
     // Validate ObjectId format
     if (!isValidObjectId(req.params.id)) {
@@ -146,7 +196,7 @@ router.get('/:id/solves', protect, async (req, res) => {
       });
     }
 
-    const challenge = await Challenge.findById(req.params.id);
+    const challenge = await Challenge.findById(req.params.id).lean();
 
     if (!challenge) {
       return res.status(404).json({
@@ -155,29 +205,24 @@ router.get('/:id/solves', protect, async (req, res) => {
       });
     }
 
-    await filterAdminSolves(challenge);
+    const viewer = await getViewer(req);
+    const denied = await playerAccessError(challenge, viewer);
+    if (denied) {
+      return res.status(denied.status).json({ success: false, message: denied.message });
+    }
 
-    // Get submissions for this challenge
-    const submissions = await Submission.find({
-      challenge: req.params.id,
-      isCorrect: true
-    })
-      .populate('user', 'username role')
-      .populate('team', 'name')
-      .sort({ submittedAt: 1 })
-      .select('user team submittedAt')
-      .lean();
-
-    // Format the response
-    const solves = submissions.filter(sub => sub.user?.role === 'user').map(sub => ({
-      username: sub.user?.username || 'Unknown',
-      team: sub.team?.name || 'No Team',
-      solvedAt: sub.submittedAt
-    }));
+    const solves = await getVisibleSolves([challenge._id], {
+      viewer,
+      cutoff: isAdmin(viewer) ? null : await getFreezeTime()
+    });
 
     res.json({
       success: true,
-      data: solves
+      data: solves.map(solve => ({
+        username: solve.username,
+        team: solve.team,
+        solvedAt: solve.solvedAt
+      }))
     });
   } catch (error) {
     console.error('Error fetching solves:', error);
@@ -196,15 +241,20 @@ router.get('/:id/solves', protect, async (req, res) => {
 
 // @route   GET /api/challenges/:id
 // @desc    Get single challenge (CTFd-style with hint views)
-// @access  Public
-router.get('/:id', async (req, res) => {
+// @access  Set by the challenge visibility setting
+router.get('/:id', optionalProtect, requireNotBanned, async (req, res) => {
   try {
     // Validate ObjectId format
-    if (!req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
+    if (!isValidObjectId(req.params.id)) {
       return res.status(404).json({
         success: false,
         message: 'Challenge not found'
       });
+    }
+
+    const viewer = await getViewer(req);
+    if (!viewer && (await getVisibility()).challenge !== 'public') {
+      return res.status(401).json({ success: false, message: 'Log in to view challenges' });
     }
 
     const challenge = await Challenge.findById(req.params.id).select('-flag -createdAt -updatedAt').lean();
@@ -216,115 +266,23 @@ router.get('/:id', async (req, res) => {
       });
     }
 
-    await filterAdminSolves(challenge);
-
-    // Check visibility and get user context - only admins can access hidden challenges
-    const token = req.cookies.token || req.cookies.access_token || (req.headers.authorization && req.headers.authorization.split(' ')[1]);
-    let isAdmin = false;
-    let userId = null;
-    let teamId = null;
-    
-    if (token) {
-      try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const user = await User.findById(decoded.id)
-          .select('role team');
-        isAdmin = user && user.role === 'admin';
-        
-        if (user) {
-          userId = user._id;
-          teamId = user.team || null;
-          challenge.isSolved = await hasSolved(challenge._id, user._id, teamId);
-        }
-      } catch (e) {
-        // Invalid token, treat as non-admin
-      }
-    }
-    
-    // If challenge is not visible and user is not admin, return 404
-    const challengeVisible = challenge.state ? challenge.state === 'visible' : challenge.isVisible;
-    if (!challengeVisible && !isAdmin) {
-      return res.status(404).json({
-        success: false,
-        message: 'Challenge not found'
-      });
+    const denied = await playerAccessError(challenge, viewer);
+    if (denied) {
+      return res.status(denied.status).json({ success: false, message: denied.message });
     }
 
-    // CTFd-style: Get user's unlocked hints from Unlocks table
-    let unlockedHints = [];
-
-    if (token && userId) {
-      try {
-        const Unlock = require('../models/Unlock');
-
-        // Get all unlocks for this challenge
-        const query = {
-          challenge: req.params.id,
-          type: 'hints'
-        };
-
-        if (teamId) {
-          query.$or = [
-            { user: userId },
-            { team: teamId }
-          ];
-        } else {
-          query.user = userId;
-        }
-
-        console.log('[Challenge GET] Query for unlocks:', JSON.stringify(query, null, 2));
-
-        const unlocks = await Unlock.find(query).select('target user team challenge');
-        unlockedHints = unlocks.map(u => u.target);
-          
-        console.log('[Challenge GET] Unlocked hints check:', {
-          userId: userId.toString(),
-          teamId: teamId ? teamId.toString() : null,
-          challengeId: req.params.id,
-          foundUnlocks: unlocks.length,
-          unlockDetails: unlocks.map(u => ({
-            target: u.target,
-            user: u.user.toString(),
-            team: u.team ? u.team.toString() : null,
-            challenge: u.challenge.toString()
-          })),
-          unlockedHintIndexes: unlockedHints
-        });
-      } catch (err) {
-        console.error('[Challenge GET] Auth error:', err.message);
-        // Token invalid or user not found, continue without unlocked hints
-      }
+    if (viewer) {
+      challenge.isSolved = await hasSolved(challenge._id, viewer._id, viewer.team);
     }
+    await showSolvers([challenge], viewer);
 
-    // CTFd-style: Transform hints based on unlock status
-    if (challenge.hints && challenge.hints.length > 0) {
-      challenge.hints = challenge.hints.map((hint, index) => {
-        const isUnlocked = unlockedHints.includes(index);
-        const isFree = hint.cost === 0;
-
-        // Return "unlocked" view (with content) or "locked" view (without content)
-        if (isUnlocked || isFree) {
-          return {
-            id: index,
-            content: hint.content,
-            cost: hint.cost,
-            unlocked: true
-          };
-        } else {
-          return {
-            id: index,
-            cost: hint.cost,
-            unlocked: false
-            // content intentionally omitted for locked hints
-          };
-        }
-      });
-    }
+    const unlocked = (await unlockedHintsFor(viewer, [challenge._id])).get(String(challenge._id)) || new Set();
+    challenge.hints = viewHints(challenge.hints, unlocked);
 
     res.json({
       success: true,
       data: challenge,
-      unlockedHints // Still include this for backward compatibility
+      unlockedHints: [...unlocked] // Still include this for backward compatibility
     });
   } catch (error) {
     console.error('Error fetching challenge:', error);
@@ -364,6 +322,11 @@ router.post('/', protect, authorize('admin'), async (req, res) => {
 
       // CTFd behavior: dynamic challenge current value starts at initial
       payload.points = Number(payload.initial);
+    }
+
+    const scoringError = validateScoring(payload);
+    if (scoringError) {
+      return res.status(400).json({ success: false, message: scoringError });
     }
 
     const challenge = await Challenge.create(payload);
@@ -455,11 +418,27 @@ router.post('/:id/submit', protect, sanitizeInput, checkEventNotEnded, async (re
       });
     }
 
-    if (user.isBlocked) {
+    if (isBannedUser(user)) {
       return res.status(403).json({
         success: false,
         message: `Your account is blocked. Reason: ${user.blockedReason || 'No reason provided'}`
       });
+    }
+
+    // Everything that bars a player is checked before the flag, so it cannot be probed.
+    if (user.role !== 'admin') {
+      if (!isPublicChallenge(challenge)) {
+        return res.status(404).json({ success: false, message: 'Challenge not found' });
+      }
+      if (!user.team) {
+        return res.status(403).json({
+          success: false,
+          message: 'Join or create a team before submitting flags'
+        });
+      }
+      if (isBannedTeam(user.team)) {
+        return res.status(403).json({ success: false, message: 'Your team is banned' });
+      }
     }
 
     if (!user.canSubmitFlags) {
@@ -505,6 +484,12 @@ router.post('/:id/submit', protect, sanitizeInput, checkEventNotEnded, async (re
     // Get IP and User Agent for tracking
     const clientIp = requestIp.getClientIp(req);
     const userAgent = req.get('User-Agent') || 'Unknown';
+
+    // Limit wrong flags per team. Counted before checking so parallel guesses cannot slip past.
+    const attempt = user.role === 'admin' ? null : await takeAttempt('flag', user.team._id);
+    if (attempt && !attempt.allowed) {
+      return tooMany(res, attempt.retryAfter, `Too many wrong flags. Try again in ${attempt.retryAfter} seconds.`);
+    }
 
     // Check flag using constant-time comparison to prevent timing attacks
     const expectedFlag = challenge.flag.trim();
@@ -564,6 +549,9 @@ router.post('/:id/submit', protect, sanitizeInput, checkEventNotEnded, async (re
       });
     }
 
+    // Only wrong flags count against the limit
+    if (attempt) await attempt.release();
+
     if (user.role === 'admin') {
       return res.json({
         success: true,
@@ -609,7 +597,6 @@ router.post('/:id/submit', protect, sanitizeInput, checkEventNotEnded, async (re
 
         // Writing to the player and team first makes simultaneous solves, hint unlocks and
         // team changes conflict, so MongoDB runs them one at a time.
-        const Team = require('../models/Team');
         const solver = await User.findByIdAndUpdate(
           req.user._id,
           { $inc: { scoreRevision: 1 } },
@@ -619,7 +606,12 @@ router.post('/:id/submit', protect, sanitizeInput, checkEventNotEnded, async (re
         const team = solver.team
           ? await Team.findByIdAndUpdate(solver.team, { $inc: { scoreRevision: 1 } }, { new: true, session })
           : null;
-        solveTeamId = team?._id || null;
+        if (isBannedUser(solver)) throw Object.assign(new Error('Your account is blocked'), { status: 403 });
+        if (!team) {
+          throw Object.assign(new Error('Join or create a team before submitting flags'), { status: 403 });
+        }
+        if (isBannedTeam(team)) throw Object.assign(new Error('Your team is banned'), { status: 403 });
+        solveTeamId = team._id;
 
         // Check again now that no other solve for this player or team can slip in
         if (await hasSolved(challenge._id, solver._id, solveTeamId, session)) {
@@ -703,7 +695,7 @@ router.post('/:id/submit', protect, sanitizeInput, checkEventNotEnded, async (re
 
     // Get current challenge value for response
     const updatedChallenge = await Challenge.findById(challenge._id);
-    const currentValue = updatedChallenge.getCurrentValue();
+    const currentValue = updatedChallenge.points;
 
     logActivity('FLAG_SUBMITTED_SUCCESS', {
       userId: req.user._id,
@@ -781,10 +773,24 @@ router.delete('/:id', protect, authorize('admin'), async (req, res) => {
       });
     }
 
-    await challenge.deleteOne();
+    // Refund hint costs paid on this challenge
+    const hintCosts = {
+      category: 'hints',
+      $or: [
+        { challenge: challenge._id },
+        // Costs recorded before awards were linked to challenges
+        { challenge: null, name: `Hint Unlock: ${challenge.title}`.slice(0, 80) }
+      ]
+    };
+    const refunded = await Award.find(hintCosts).select('user').lean();
+    const solverIds = await Submission.distinct('user', { challenge: challenge._id, isCorrect: true });
 
-    // Its points no longer count for anyone who solved it
-    await refreshUserPoints(challenge.solvedBy);
+    await challenge.deleteOne();
+    await Award.deleteMany(hintCosts);
+    await Unlock.deleteMany({ challenge: challenge._id });
+
+    // Its points and hint costs no longer count for anyone
+    await refreshUserPoints([...solverIds, ...refunded.map(award => award.user)]);
     await clearScoreboardCache();
 
     // Invalidate public challenges cache
@@ -877,6 +883,15 @@ router.put('/:id', protect, authorize('admin'), async (req, res) => {
       delete updateData.points;
     }
 
+    // Check the settings as they will be after this update
+    const scoringFields = ['points', 'function', 'initial', 'minimum', 'decay', 'hints'];
+    if (scoringFields.some(field => updateData[field] !== undefined)) {
+      const scoringError = validateScoring({ ...challenge.toObject(), ...updateData });
+      if (scoringError) {
+        return res.status(400).json({ success: false, message: scoringError });
+      }
+    }
+
     const updatedChallenge = await Challenge.findByIdAndUpdate(
       req.params.id,
       updateData,
@@ -888,7 +903,7 @@ router.put('/:id', protect, authorize('admin'), async (req, res) => {
 
     // Recalculate dynamic value from formula after update (CTFd behavior)
     if (updatedChallenge.function === 'linear' || updatedChallenge.function === 'logarithmic') {
-      await scoringService.updateChallengeValue(updatedChallenge._id);
+      updatedChallenge.points = await scoringService.updateChallengeValue(updatedChallenge._id);
     } else if (updatedChallenge.points !== challenge.points) {
       await refreshUserPoints(updatedChallenge.solvedBy);
     }
@@ -1140,6 +1155,7 @@ router.delete(
 router.get(
   '/:challengeId/download/:filename',
   protect,
+  requireNotBanned,
   async (req, res) => {
     try {
       const { challengeId } = req.params;
@@ -1161,12 +1177,10 @@ router.get(
         });
       }
 
-      // Check if challenge is visible (unless admin)
-      if (challenge.state !== 'visible' && req.user.role !== 'admin') {
-        return res.status(403).json({
-          success: false,
-          message: 'Challenge is not accessible'
-        });
+      // Players: visible challenges only, once the event has started
+      const denied = await playerAccessError(challenge, await getViewer(req));
+      if (denied) {
+        return res.status(denied.status).json({ success: false, message: denied.message });
       }
 
       // Find file

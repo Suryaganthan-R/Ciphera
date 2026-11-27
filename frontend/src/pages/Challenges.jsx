@@ -108,6 +108,8 @@ function Challenges() {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [sortBy, setSortBy] = useState('points'); // points, solves, title
   const [stats, setStats] = useState({ solved: 0, remaining: 0, total: 0 });
+  // Why the board is empty, e.g. the event has not started
+  const [boardMessage, setBoardMessage] = useState('');
   
   useEffect(() => {
     fetchCategories();
@@ -163,12 +165,14 @@ function Challenges() {
       setLoading(true);
       const res = await axios.get('/api/challenges?page=1&limit=1000');
       setChallenges(res.data.data || []);
+      setBoardMessage(res.data.notStarted ? res.data.message : '');
       // Use stats from backend if available
       if (res.data.stats) {
         setStats(res.data.stats);
       }
     } catch (err) {
       console.error('Error fetching challenges:', err);
+      setBoardMessage(err.response?.data?.message || 'Challenges could not be loaded');
     } finally {
       setLoading(false);
     }
@@ -383,8 +387,8 @@ function Challenges() {
                 exit={{ opacity: 0 }}
               >
                 <Search size={48} />
-                <h3>No challenges found</h3>
-                <p>Try adjusting your filters</p>
+                <h3>{boardMessage || 'No challenges found'}</h3>
+                <p>{boardMessage ? 'Check back later' : 'Try adjusting your filters'}</p>
               </motion.div>
             ) : (
               filteredChallenges.map((challenge) => (

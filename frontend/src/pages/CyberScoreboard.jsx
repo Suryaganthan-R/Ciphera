@@ -17,10 +17,7 @@ function Scoreboard() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [graphKey, setGraphKey] = useState(0);
-
-  if (customMessage) {
-    return <CustomMessageDisplay message={customMessage} />;
-  }
+  const [hiddenMessage, setHiddenMessage] = useState('');
 
   useEffect(() => {
     fetchScoreboard();
@@ -34,10 +31,15 @@ function Scoreboard() {
       const res = await axios.get(`/api/v1/scoreboard?type=${viewType}`);
       if (res.data.success) {
         setStandings(res.data.data);
+        setHiddenMessage('');
       }
       setLoading(false);
     } catch (err) {
       console.error('Scoreboard load error:', err);
+      if (err.response?.data?.scoresHidden) {
+        setStandings([]);
+        setHiddenMessage(err.response.data.message);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -47,6 +49,11 @@ function Scoreboard() {
       }
     }
   };
+
+  // After the hooks: returning earlier would crash the page when a message appears
+  if (customMessage) {
+    return <CustomMessageDisplay message={customMessage} />;
+  }
 
   const getRankIcon = (rank) => {
     if (rank === 1) return <Trophy size={24} className="rank-icon rank-icon--gold" />;
@@ -138,8 +145,8 @@ function Scoreboard() {
             ) : standings.length === 0 ? (
               <div className="cyber-scoreboard-empty">
                 <Trophy size={64} className="cyber-scoreboard-empty-icon" />
-                <h3>No Standings Yet</h3>
-                <p>Be the first to solve a challenge!</p>
+                <h3>{hiddenMessage || 'No Standings Yet'}</h3>
+                {!hiddenMessage && <p>Be the first to solve a challenge!</p>}
               </div>
             ) : (
               <div className="cyber-scoreboard-table">

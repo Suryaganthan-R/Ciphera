@@ -6,8 +6,12 @@ const User = require('../models/User');
 const { protect, authorize } = require('../middleware/auth');
 const { invalidateTeamPoints } = require('../utils/teamPointsCache');
 const { clearScoreboardCache } = require('../utils/redis');
-const { aggregateTeamStandings } = require('../utils/teamStandings');
-const { getTeamRawScore, getTeamSolveQuery } = require('../utils/teamScore');
+const { getTeamRawScore } = require('../utils/teamScore');
+const { loadScoreboard } = require('../utils/standings');
+const { getViewer, isAdmin, getFreezeTime, getVisibility, allows, requireNotBanned } = require('../utils/access');
+const { isBannedUser, isBannedTeam, isListedTeam } = require('../utils/scoringRules');
+const { takeAttempt, tooMany } = require('../utils/attempts');
+const { rescore } = require('../utils/rescore');
 const { checkTeamChangesAllowed } = require('../middleware/eventState');
 const { listUnlockedHints } = require('../utils/unlockedHints');
 
@@ -32,7 +36,7 @@ const invalidateTeamCaches = async (teamId) => {
 };
 
 // Create a team with the current user as captain.
-router.post('/self', protect, checkTeamChangesAllowed, async (req, res) => {
+router.post('/self', protect, requireNotBanned, checkTeamChangesAllowed, async (req, res) => {
   const mongoose = require('mongoose');
   const session = await mongoose.startSession();
   try {
@@ -113,9 +117,10 @@ router.get('/available', protect, async (req, res) => {
   }
 });
 
-router.post('/join', protect, checkTeamChangesAllowed, async (req, res) => {
+router.post('/join', protect, requireNotBanned, checkTeamChangesAllowed, async (req, res) => {
   const mongoose = require('mongoose');
   const session = await mongoose.startSession();
+  let attempt = null;
   try {
     const inviteCode = String(req.body.inviteCode || '').trim();
     const teamId = req.body.teamId;
@@ -127,6 +132,13 @@ router.post('/join', protect, checkTeamChangesAllowed, async (req, res) => {
       throw Object.assign(new Error('Invalid team selection'), { status: 400 });
     }
 
+    // Limit password guessing
+    attempt = inviteCode ? null : await takeAttempt('teamPassword', req.user._id);
+    if (attempt && !attempt.allowed) {
+      await session.endSession();
+      return tooMany(res, attempt.retryAfter, 'Too many wrong team passwords. Please wait a few minutes.');
+    }
+
     let joinedTeam;
     await session.withTransaction(async () => {
       const currentUser = await User.findById(req.user._id).session(session);
@@ -135,7 +147,7 @@ router.post('/join', protect, checkTeamChangesAllowed, async (req, res) => {
 
       let teamQuery = inviteCode ? { inviteCode } : { _id: teamId };
       let team = await Team.findOne(teamQuery).select('+passwordHash +inviteCode').session(session);
-      if (!team || team.hidden || team.banned) {
+      if (!team || team.hidden || isBannedTeam(team)) {
         throw Object.assign(new Error('Team not found or unavailable'), { status: 404 });
       }
       if (!inviteCode) {
@@ -168,15 +180,18 @@ router.post('/join', protect, checkTeamChangesAllowed, async (req, res) => {
       joinedTeam = team;
     });
     await session.endSession();
+    if (attempt) await attempt.release();
     await invalidateTeamCaches(joinedTeam._id);
     return res.json({ success: true, data: joinedTeam });
   } catch (error) {
     await session.endSession();
+    // For example a full team: the password was not what failed
+    if (attempt && error.status !== 401) await attempt.release();
     return sendTeamError(res, error, 'Error joining team');
   }
 });
 
-router.put('/my/team/password', protect, async (req, res) => {
+router.put('/my/team/password', protect, requireNotBanned, async (req, res) => {
   try {
     const password = String(req.body.password || '');
     if (password.length < 8 || Buffer.byteLength(password, 'utf8') > 72) {
@@ -197,7 +212,7 @@ router.put('/my/team/password', protect, async (req, res) => {
   }
 });
 
-router.post('/my/team/invite', protect, async (req, res) => {
+router.post('/my/team/invite', protect, requireNotBanned, async (req, res) => {
   try {
     const user = await User.findById(req.user._id).select('team');
     const team = user?.team ? await Team.findById(user.team).select('+inviteCode') : null;
@@ -216,7 +231,7 @@ router.post('/my/team/invite', protect, async (req, res) => {
   }
 });
 
-router.delete('/my/team/membership', protect, checkTeamChangesAllowed, async (req, res) => {
+router.delete('/my/team/membership', protect, requireNotBanned, checkTeamChangesAllowed, async (req, res) => {
   const mongoose = require('mongoose');
   const session = await mongoose.startSession();
   try {
@@ -244,7 +259,7 @@ router.delete('/my/team/membership', protect, checkTeamChangesAllowed, async (re
   }
 });
 
-router.delete('/my/team', protect, checkTeamChangesAllowed, async (req, res) => {
+router.delete('/my/team', protect, requireNotBanned, checkTeamChangesAllowed, async (req, res) => {
   const mongoose = require('mongoose');
   const session = await mongoose.startSession();
   try {
@@ -418,15 +433,20 @@ router.get('/', protect, async (req, res) => {
     const isAdmin = req.user.role === 'admin';
     const view = (req.query.view || '').toString().trim();
 
+    if (!allows((await getVisibility()).account, req.user)) {
+      return res.status(403).json({ success: false, message: 'Team pages are hidden by the organisers' });
+    }
+
     // CTFd-style: hidden/banned are available only in admin view
     if (!(isAdmin && view === 'admin')) {
       query.hidden = { $ne: true };
       query.banned = { $ne: true };
+      query.isBlocked = { $ne: true };
     }
     
-    // Hide emails only, keep solvedChallenges visible for transparency
-    const memberFields = isAdmin ? 'username email points' : 'username points';
-    const captainFields = isAdmin ? 'username email points' : 'username points';
+    // Scores come from the scoreboard, which applies visibility and the freeze
+    const memberFields = isAdmin ? 'username email points' : 'username';
+    const captainFields = isAdmin ? 'username email points' : 'username';
     
     const teams = await Team.find(query)
       .populate('members', memberFields)
@@ -442,7 +462,14 @@ router.get('/', protect, async (req, res) => {
         ...team.toJSON(),
         points: Math.max(0, await getTeamRawScore(team._id))
       })))
-      : teams;
+      : teams.map(team => {
+        const safe = team.toJSON();
+        if (!isAdmin) {
+          delete safe.points;
+          delete safe.solvedChallenges;
+        }
+        return safe;
+      });
 
     res.json({
       success: true,
@@ -466,20 +493,15 @@ router.get('/', protect, async (req, res) => {
 router.get('/:id', protect, async (req, res) => {
   res.set('Cache-Control', 'no-store');
   try {
-    const isAdmin = req.user.role === 'admin';
-    
-    // Hide emails only, show solvedChallenges and unlockedHints for transparency
-    const memberFields = isAdmin 
-      ? 'username email points solvedChallenges personallySolvedChallenges unlockedHints'
-      : 'username points solvedChallenges personallySolvedChallenges unlockedHints';
-    const captainFields = isAdmin 
-      ? 'username email points solvedChallenges personallySolvedChallenges unlockedHints'
-      : 'username points solvedChallenges personallySolvedChallenges unlockedHints';
-    
+    const viewer = await getViewer(req);
+    const admin = isAdmin(viewer);
+
+    // Hide emails from other players
+    const memberFields = admin ? 'username email banned isBlocked' : 'username banned isBlocked';
+
     const team = await Team.findById(req.params.id)
       .select('+inviteCode')
       .populate('members', memberFields)
-      .populate('captain', captainFields)
       .populate('createdBy', 'username');
 
     if (!team) {
@@ -489,63 +511,61 @@ router.get('/:id', protect, async (req, res) => {
       });
     }
 
-    // CTFd-style visibility rule
-    if (!isAdmin && (team.hidden || team.banned)) {
+    const own = String(viewer.team) === String(team._id);
+
+    // CTFd-style visibility rule: hidden and banned teams are seen by admins and members
+    if (!admin && !own && !isListedTeam(team)) {
       return res.status(404).json({
         success: false,
         message: 'Team not found'
       });
     }
 
-    // Calculate points dynamically for each member from submissions (like scoreboard does)
-    const Submission = require('../models/Submission');
-    const memberIds = team.members.map(m => m._id);
-    
-    // Each member's solves that count for this team
-    const teamSolveQuery = await getTeamSolveQuery(team._id);
-    const memberStatsAgg = await Submission.aggregate([
-      { $match: { ...teamSolveQuery, $and: [{ user: { $in: memberIds } }] } },
-      {
-        $lookup: {
-          from: 'challenges',
-          localField: 'challenge',
-          foreignField: '_id',
-          as: 'challengeData'
-        }
-      },
-      { $unwind: '$challengeData' },
-      {
-        $group: {
-          _id: '$user',
-          totalPoints: { $sum: '$challengeData.points' },
-          solvedCount: { $sum: 1 },
-          solvedChallenges: { $addToSet: '$challenge' }
-        }
-      }
-    ]);
-    
+    const visibility = await getVisibility();
+    if (!own && !allows(visibility.account, viewer)) {
+      return res.status(403).json({ success: false, message: 'Team pages are hidden by the organisers' });
+    }
+
+    // A team sees its own live score; others see it as of the freeze
+    const freezeTime = admin ? null : await getFreezeTime();
+    const cutoff = own ? null : freezeTime;
+    const showScores = own || allows(visibility.score, viewer);
+
+    const board = await loadScoreboard({ cutoff });
+    // Rank is the team's place on the scoreboard the viewer sees
+    const publicBoard = cutoff === freezeTime ? board : await loadScoreboard({ cutoff: freezeTime });
+    const rank = allows(visibility.score, viewer)
+      ? publicBoard.teamStandings().find(row => row.account_id === String(team._id))?.pos || null
+      : null;
+
+    const entries = showScores ? board.teamEntries(team._id) : [];
+    const solves = entries.filter(entry => entry.challengeId);
+    const score = showScores ? Math.max(0, board.summarize(entries).score) : null;
+
     // Hints paid for by this team, including any unlocked by members who have since left
-    const teamHints = await listUnlockedHints({ team: team._id });
+    const teamHints = showScores
+      ? (await listUnlockedHints({ team: team._id }))
+        .filter(hint => !cutoff || hint.unlockedAt < cutoff)
+      : [];
     const hintsByUser = new Map();
     teamHints.forEach(hint => {
       const userId = hint.userId.toString();
       hintsByUser.set(userId, [...(hintsByUser.get(userId) || []), hint]);
     });
 
-    const statsMap = new Map(memberStatsAgg.map(item => [item._id.toString(), item]));
-
-    // Build new members array with calculated stats
+    // Each member's solves that count for this team
     const updatedMembers = team.members.map(member => {
       const memberId = member._id.toString();
-      const stats = statsMap.get(memberId);
+      const own = solves.filter(entry => entry.userId === memberId);
 
       return {
         _id: member._id,
         username: member.username,
         email: member.email,
-        points: stats ? stats.totalPoints : 0,
-        personallySolvedCount: stats ? stats.solvedCount : 0,
-        personallySolvedChallenges: stats ? stats.solvedChallenges : [],
+        isBanned: isBannedUser(member),
+        points: showScores ? own.reduce((sum, entry) => sum + entry.value, 0) : null,
+        personallySolvedCount: own.length,
+        personallySolvedChallenges: own.map(entry => entry.challengeId),
         unlockedHints: hintsByUser.get(memberId) || []
       };
     });
@@ -561,30 +581,25 @@ router.get('/:id', protect, async (req, res) => {
       unlockedHints: hintsByUser.get(userId)
     }));
 
-    const standings = await aggregateTeamStandings(isAdmin);
-    const teamStanding = standings.find(row => row.account_id === team._id.toString());
-    const calculatedPoints = teamStanding?.score || 0;
-    const rank = teamStanding?.pos || 0;
-    
-    // Challenges solved for this team, including by members who have since left
-    const allSolvedChallenges = await Submission.distinct('challenge', teamSolveQuery);
-
     // Build response with calculated values
     const teamData = {
       _id: team._id,
       name: team.name,
       description: team.description,
-      captain: updatedMembers.find(member => member._id.toString() === team.captain?._id.toString()) || null,
+      captain: updatedMembers.find(member => member._id.toString() === String(team.captain)) || null,
       members: updatedMembers,
       hintsUnlocked: teamHints.length,
       formerMemberHints,
-      totalPoints: calculatedPoints,
-      points: calculatedPoints,
-      rank: rank,
+      totalPoints: score,
+      points: score,
+      rank,
+      scoresHidden: !showScores,
+      frozen: Boolean(cutoff),
       inviteCode: isTeamCaptain(team, req.user._id) ? team.inviteCode : undefined,
       maxMembers: MAX_TEAM_MEMBERS,
       isCaptain: isTeamCaptain(team, req.user._id),
-      solvedChallenges: allSolvedChallenges.length
+      // Challenges solved for this team, including by members who have since left
+      solvedChallenges: showScores ? new Set(solves.map(entry => entry.challengeId)).size : null
     };
 
     res.json({
@@ -671,6 +686,7 @@ router.put('/:id', protect, authorize('admin'), async (req, res) => {
     await session.endSession();
     await team.populate('members createdBy');
     await invalidateTeamCaches(team._id);
+    await rescore(); // banning or hiding a team changes dynamic values
 
     res.json({
       success: true,
@@ -708,6 +724,7 @@ router.delete('/:id', protect, authorize('admin'), async (req, res) => {
 
     await Team.findByIdAndDelete(req.params.id);
     await invalidateTeamCaches(req.params.id);
+    await rescore();
 
     res.json({
       success: true,

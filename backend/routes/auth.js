@@ -1,6 +1,13 @@
 const express = require('express');
 const { listUnlockedHints } = require('../utils/unlockedHints');
 const { getUserRawScore, getSolvedChallengeIds } = require('../utils/teamScore');
+const Challenge = require('../models/Challenge');
+const Submission = require('../models/Submission');
+const { loadScoreboard } = require('../utils/standings');
+const { getViewer, isAdmin: isAdminViewer, getFreezeTime, getVisibility, allows } = require('../utils/access');
+const { isListedUser } = require('../utils/scoringRules');
+const { takeAttempt, tooMany } = require('../utils/attempts');
+const { rescore } = require('../utils/rescore');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const config = require('../config');
@@ -605,6 +612,16 @@ router.post('/login', sanitizeInput, async (req, res) => {
       });
     }
 
+    // Limit password guessing: per email and address, and per account from anywhere.
+    // Counted before checking so parallel guesses cannot slip past.
+    const attempts = [await takeAttempt('login', `${validatedEmail}:${req.ip}`)];
+    // A blocked address must not use up the account's allowance for everyone else
+    if (attempts[0].allowed) attempts.push(await takeAttempt('loginAccount', validatedEmail));
+    const blocked = attempts.find(attempt => !attempt.allowed);
+    if (blocked) {
+      return tooMany(res, blocked.retryAfter, 'Too many failed logins. Please wait a few minutes.');
+    }
+
     // Check for user
     const user = await User.findOne({ email: validatedEmail }).select('+password');
 
@@ -653,6 +670,9 @@ router.post('/login', sanitizeInput, async (req, res) => {
         message: 'Invalid credentials'
       });
     }
+
+    // Only failed logins count against the limits
+    await Promise.all(attempts.map(attempt => attempt.release()));
 
     // Update last login time
     user.lastLoginAt = new Date();
@@ -1096,33 +1116,24 @@ router.get('/me', protect, async (req, res) => {
 
     // Challenges closed to this player: their own solves and their current team's
     const solvedIds = await getSolvedChallengeIds(user._id, user.team?._id);
-    const solvedChallenges = await require('../models/Challenge')
-      .find({ _id: { $in: solvedIds } })
+    const ownIds = await Submission.distinct('challenge', { user: user._id, isCorrect: true });
+    const challengeDetails = await Challenge.find({ _id: { $in: [...solvedIds, ...ownIds] } })
       .select('title category points')
       .lean();
+    const pick = ids => {
+      const wanted = new Set(ids.map(String));
+      return challengeDetails.filter(challenge => wanted.has(String(challenge._id)));
+    };
+    const solvedChallenges = pick(solvedIds);
+    // The player's own solves; these add up to their points (with any awards)
+    const ownSolves = pick(ownIds);
 
-    // Get rank from Redis cache (1 minute TTL) or calculate
+    // Place on the player scoreboard the user can see; null when not ranked
     let rank = null;
-    const cacheKey = `user:${user._id}:rank`;
-    
-    try {
-      const cachedRank = await redisClient.get(cacheKey);
-      if (cachedRank) {
-        rank = parseInt(cachedRank);
-      } else {
-        // Calculate rank efficiently
-        rank = await User.countDocuments({ 
-          points: { $gt: totalPoints }
-        }) + 1;
-        
-        // Cache for 1 minute
-        await redisClient.setex(cacheKey, 60, rank.toString());
-      }
-    } catch (cacheError) {
-      console.error('Redis error, calculating rank directly:', cacheError);
-      rank = await User.countDocuments({ 
-        points: { $gt: totalPoints }
-      }) + 1;
+    if (allows((await getVisibility()).score, user)) {
+      const freezeTime = user.role === 'admin' ? null : await getFreezeTime();
+      const board = await loadScoreboard({ cutoff: freezeTime });
+      rank = board.userStandings().find(row => row.account_id === String(user._id))?.pos || null;
     }
 
     const formattedHints = await listUnlockedHints({ user: user._id });
@@ -1147,6 +1158,7 @@ router.get('/me', protect, async (req, res) => {
         rank: rank,
         team: teamData,
         solvedChallenges,
+        ownSolves,
         unlockedHints: formattedHints,
         isBlocked: user.isBlocked
       }
@@ -1287,100 +1299,54 @@ router.get('/users/:id', protect, async (req, res) => {
 // @access  Private
 router.get('/user/:id', protect, async (req, res) => {
   try {
-    const isAdmin = req.user.role === 'admin';
+    const viewer = await getViewer(req);
+    const admin = isAdminViewer(viewer);
     const user = await User.findById(req.params.id)
-      .select('username unlockedHints team createdAt hidden banned')
+      .select('username role team createdAt hidden banned isBlocked showInScoreboard')
       .populate('team', 'name');
+    const self = Boolean(user) && String(viewer._id) === String(user._id);
 
-    if (!user) {
+    // Hidden and banned players are seen by admins and themselves
+    if (!user || (!admin && !self && !isListedUser(user))) {
       return res.status(404).json({
         success: false,
         message: 'User not found'
       });
     }
 
-    if (!isAdmin && (user.hidden || user.banned)) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
+    const visibility = await getVisibility();
+    if (!self && !allows(visibility.account, viewer)) {
+      return res.status(403).json({ success: false, message: 'Profiles are hidden by the organisers' });
     }
 
-    // Calculate user's total points dynamically from submissions (like scoreboard does)
-    const Submission = require('../models/Submission');
-    const Challenge = require('../models/Challenge');
-    const mongoose = require('mongoose');
-    
-    console.log('[User Profile] Fetching submissions for user:', user._id.toString());
-    
-    // Get all submissions by this user with challenge details
-    const userSubmissions = await Submission.aggregate([
-      { $match: { user: user._id, isCorrect: true } },
-      {
-        $lookup: {
-          from: 'challenges',
-          localField: 'challenge',
-          foreignField: '_id',
-          as: 'challengeData'
-        }
-      },
-      { $unwind: '$challengeData' },
-      {
-        $project: {
-          challengeId: '$challenge',
-          challengeTitle: '$challengeData.title',
-          challengeCategory: '$challengeData.category',
-          points: '$challengeData.points',
-          solvedAt: '$submittedAt'
-        }
-      },
-      { $sort: { solvedAt: -1 } }
-    ]);
+    // Players see their own live score; others see it as of the freeze
+    const freezeTime = admin ? null : await getFreezeTime();
+    const cutoff = self ? null : freezeTime;
+    const showScores = self || allows(visibility.score, viewer);
 
-    console.log('[User Profile] Found submissions:', userSubmissions.length);
-    console.log('[User Profile] Submissions:', userSubmissions);
+    const board = await loadScoreboard({ cutoff });
+    const publicBoard = cutoff === freezeTime ? board : await loadScoreboard({ cutoff: freezeTime });
+    const rank = allows(visibility.score, viewer)
+      ? publicBoard.userStandings().find(row => row.account_id === String(user._id))?.pos || null
+      : null;
 
-    // Awards include hint costs paid by players without a team
-    const Award = require('../models/Award');
-    const userAwards = await Award.find({ user: user._id }).select('value').lean();
-    const calculatedPoints = Math.max(0,
-      userSubmissions.reduce((sum, sub) => sum + sub.points, 0)
-      + userAwards.reduce((sum, award) => sum + (award.value || 0), 0));
-    
-    const unlockedHints = await listUnlockedHints({ user: user._id });
-
-    // Build solved challenges array with full details
-    const solvedChallengesWithDetails = userSubmissions.map(sub => ({
-      _id: sub.challengeId,
-      title: sub.challengeTitle,
-      category: sub.challengeCategory,
-      points: sub.points,
-      solvedAt: sub.solvedAt
+    const entries = showScores ? board.userEntries(user._id) : [];
+    const solves = entries.filter(entry => entry.challengeId).sort((a, b) => b.date - a.date);
+    const details = await Challenge.find({ _id: { $in: solves.map(entry => entry.challengeId) } })
+      .select('title category')
+      .lean();
+    const detailById = new Map(details.map(challenge => [String(challenge._id), challenge]));
+    const solvedChallengesWithDetails = solves.map(entry => ({
+      _id: entry.challengeId,
+      title: detailById.get(entry.challengeId)?.title,
+      category: detailById.get(entry.challengeId)?.category,
+      points: entry.value,
+      solvedAt: entry.date
     }));
 
-    // Calculate user rank based on calculated points
-    const allUsersPoints = await Submission.aggregate([
-      { $match: { isCorrect: true } },
-      {
-        $lookup: {
-          from: 'challenges',
-          localField: 'challenge',
-          foreignField: '_id',
-          as: 'challengeData'
-        }
-      },
-      { $unwind: '$challengeData' },
-      {
-        $group: {
-          _id: '$user',
-          score: { $sum: '$challengeData.points' }
-        }
-      },
-      { $match: { score: { $gt: calculatedPoints } } },
-      { $count: 'count' }
-    ]);
-
-    const rank = (allUsersPoints.length > 0 ? allUsersPoints[0].count : 0) + 1;
+    const unlockedHints = showScores
+      ? (await listUnlockedHints({ user: user._id })).filter(hint => !cutoff || hint.unlockedAt < cutoff)
+      : [];
 
     res.json({
       success: true,
@@ -1388,14 +1354,16 @@ router.get('/user/:id', protect, async (req, res) => {
         _id: user._id,
         username: user.username,
         team: user.team,
-        points: calculatedPoints,
+        points: showScores ? Math.max(0, board.summarize(entries).score) : null,
         rank,
+        scoresHidden: !showScores,
         solvedChallenges: solvedChallengesWithDetails,
         challengesSolvedCount: solvedChallengesWithDetails.length,
         unlockedHints
       }
     });
   } catch (error) {
+    console.error('Error fetching user profile:', error);
     res.status(500).json({
       success: false,
       message: process.env.NODE_ENV === 'development' ? error.message : 'Error fetching user'
@@ -1447,6 +1415,7 @@ router.put('/users/:id/role', protect, async (req, res) => {
     const oldRole = user.role;
     user.role = newRole;
     await user.save();
+    await rescore();
 
     res.json({
       success: true,
@@ -1528,9 +1497,7 @@ router.patch('/users/:id', protect, authorize('admin'), async (req, res) => {
 
     if (hidden !== undefined) {
       user.hidden = !!hidden;
-      if (hidden) {
-        user.showInScoreboard = false;
-      }
+      user.showInScoreboard = !hidden;
     }
 
     if (banned !== undefined) {
@@ -1546,15 +1513,14 @@ router.patch('/users/:id', protect, authorize('admin'), async (req, res) => {
       user.isBlocked = !!banned;
       user.blockedReason = banned ? 'Banned by admin' : null;
       user.blockedAt = banned ? new Date() : null;
-      if (banned) {
-        user.showInScoreboard = false;
-      }
+      user.showInScoreboard = !banned && !user.hidden;
     }
 
     if (canSubmitFlags !== undefined) user.canSubmitFlags = !!canSubmitFlags;
     if (showInScoreboard !== undefined) user.showInScoreboard = !!showInScoreboard;
 
     await user.save();
+    await rescore();
 
     return res.json({
       success: true,
@@ -1603,6 +1569,7 @@ router.delete('/users/:id', protect, authorize('admin'), async (req, res) => {
     }
 
     await User.findByIdAndDelete(req.params.id);
+    await rescore();
 
     res.json({
       success: true,
@@ -1651,10 +1618,9 @@ router.put('/users/:id/block', protect, authorize('admin'), async (req, res) => 
     user.banned = isBlocked;
     user.blockedReason = isBlocked ? reason || 'No reason provided' : null;
     user.blockedAt = isBlocked ? new Date() : null;
-    if (isBlocked) {
-      user.showInScoreboard = false;
-    }
+    user.showInScoreboard = !isBlocked && !user.hidden;
     await user.save();
+    await rescore();
 
     res.json({
       success: true,
@@ -1750,6 +1716,7 @@ router.put('/users/:id/scoreboard-visibility', protect, authorize('admin'), asyn
 
     user.showInScoreboard = showInScoreboard;
     await user.save();
+    await rescore();
 
     res.json({
       success: true,

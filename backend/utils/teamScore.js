@@ -16,15 +16,17 @@ const User = require('../models/User');
 // Aggregations do not cast strings to ObjectIds.
 const toId = value => new mongoose.Types.ObjectId(String(value?._id || value));
 
-// Admin accounts never score.
-async function getNonPlayerIds(session = null) {
-  const users = await User.find({ role: { $ne: 'user' } }).select('_id').session(session).lean();
+// Solves by admins and banned players score nothing (see isVoidUser).
+async function getVoidUserIds(session = null) {
+  const users = await User.find({
+    $or: [{ role: { $ne: 'user' } }, { banned: true }, { isBlocked: true }]
+  }).select('_id').session(session).lean();
   return users.map(user => user._id);
 }
 
 // Matches the correct solves that count for a team.
 async function getTeamSolveQuery(teamId, session = null) {
-  return { team: toId(teamId), isCorrect: true, user: { $nin: await getNonPlayerIds(session) } };
+  return { team: toId(teamId), isCorrect: true, user: { $nin: await getVoidUserIds(session) } };
 }
 
 const sumSolvePoints = async (match, session) => {
@@ -50,7 +52,10 @@ const sumAwardPoints = async (match, session) => {
 async function getTeamRawScore(teamId, session = null) {
   const solvePoints = await sumSolvePoints(await getTeamSolveQuery(teamId, session), session);
   const awardPoints = await sumAwardPoints(
-    { $or: [{ team: toId(teamId) }, { creditedTeam: toId(teamId) }] },
+    {
+      $or: [{ team: toId(teamId) }, { creditedTeam: toId(teamId) }],
+      user: { $nin: await getVoidUserIds(session) }
+    },
     session
   );
   return solvePoints + awardPoints;
@@ -106,7 +111,7 @@ async function refreshUserPoints(userIds) {
 }
 
 module.exports = {
-  getNonPlayerIds,
+  getVoidUserIds,
   getTeamSolveQuery,
   getTeamRawScore,
   getUserRawScore,

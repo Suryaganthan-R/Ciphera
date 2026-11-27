@@ -171,6 +171,13 @@ exports.protect = async (req, res, next) => {
   }
 };
 
+// Identifies the user when they are logged in; lets visitors through otherwise.
+exports.optionalProtect = (req, res, next) => {
+  const hasToken = req.cookies?.access_token || req.cookies?.token
+    || req.headers.authorization?.startsWith('Bearer');
+  return hasToken ? exports.protect(req, res, next) : next();
+};
+
 // Grant access to specific roles
 exports.authorize = (...roles) => {
   return (req, res, next) => {
