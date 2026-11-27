@@ -8,6 +8,7 @@ import { useSiteConfig } from '../context/SiteConfigContext';
 import axios from 'axios';
 import { Badge } from './ui';
 import PillNav from './PillNav';
+import { LiquidMetalButton } from './ui/liquid-metal-button';
 import './Navbar.css';
 
 const navLinks = [
@@ -220,15 +221,15 @@ function Navbar() {
         <div className="cyber-navbar-actions cyber-navbar-actions--desktop">
           {isAdmin && (
             <div className="cyber-navbar-dropdown" ref={adminMenuRef}>
-              <button
-                type="button"
-                className="cyber-navbar-link cyber-navbar-link--dropdown"
-                onClick={() => setIsAdminMenuOpen(!isAdminMenuOpen)}
-              >
-                <Settings size={18} />
-                <span>Admin</span>
-                <ChevronDown size={16} className={`cyber-navbar-chevron ${isAdminMenuOpen ? 'cyber-navbar-chevron--open' : ''}`} />
-              </button>
+              <LiquidMetalButton
+                label="Admin"
+                width={118}
+                icon={<Settings size={16} />}
+                trailing={<ChevronDown size={16} className={`cyber-navbar-chevron ${isAdminMenuOpen ? 'cyber-navbar-chevron--open' : ''}`} />}
+                active={location.pathname.startsWith('/admin')}
+                expanded={isAdminMenuOpen}
+                onClick={() => setIsAdminMenuOpen((open) => !open)}
+              />
               <AnimatePresence>
                 {isAdminMenuOpen && (
                   <motion.div
@@ -255,20 +256,22 @@ function Navbar() {
           )}
 
           {isAuthenticated && (
-            <Link
-              to="/notices"
-              className={`cyber-navbar-link ${isActive('/notices') ? 'cyber-navbar-link--active' : ''}`}
-            >
-              <div className="cyber-navbar-notice-icon">
-                <Bell size={18} />
-                {unreadNoticeCount > 0 && (
-                  <Badge variant="danger" size="sm" className="cyber-navbar-badge">
-                    {unreadNoticeCount}
-                  </Badge>
-                )}
-              </div>
-              <span>Notices</span>
-            </Link>
+            <LiquidMetalButton
+              href="/notices"
+              label="Notices"
+              width={112}
+              active={isActive('/notices')}
+              icon={
+                <div className="cyber-navbar-notice-icon">
+                  <Bell size={16} />
+                  {unreadNoticeCount > 0 && (
+                    <Badge variant="danger" size="sm" className="cyber-navbar-badge">
+                      {unreadNoticeCount}
+                    </Badge>
+                  )}
+                </div>
+              }
+            />
           )}
 
           {isAuthenticated ? (
@@ -316,10 +319,13 @@ function Navbar() {
               </AnimatePresence>
             </div>
           ) : (
-            <Link to="/login" className="cyber-navbar-login-button">
-              <User size={18} />
-              <span>Login</span>
-            </Link>
+            <LiquidMetalButton
+              href="/login"
+              label="Login"
+              width={96}
+              icon={<User size={16} />}
+              active={isActive('/login')}
+            />
           )}
         </div>
       </div>
