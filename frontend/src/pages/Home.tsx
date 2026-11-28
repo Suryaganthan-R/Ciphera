@@ -6,7 +6,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import heroImage from '../../../pic.png';
+import heroImage from '../../../pic.webp';
 import InteractiveBackground from '../components/InteractiveBackground';
 import AuthContext from '../context/AuthContext';
 import { useSiteConfig } from '../context/SiteConfigContext';

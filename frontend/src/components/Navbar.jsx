@@ -2,7 +2,7 @@ import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Bell, ChevronDown, LogOut, Settings, User, Users } from 'lucide-react';
-import cloverKingdomLogo from '../../../pic.png';
+import cloverKingdomLogo from '../../../pic.webp';
 import AuthContext from '../context/AuthContext';
 import { useSiteConfig } from '../context/SiteConfigContext';
 import axios from 'axios';
